@@ -46,14 +46,15 @@ def check_win(bet_key, result):
 
 
 class RouletteApp:
-    def __init__(self, root):
+    def __init__(self, root, bankroll=1000, on_close=None):
         self.root = root
         self.root.title("Casino Roulette")
         self.root.geometry("1400x860")
         self.root.minsize(1300, 760)
         self.root.configure(bg="#0b3d2e")
 
-        self.bankroll = 1000
+        self.bankroll = bankroll
+        self.on_close = on_close
         self.chip_amount = 25
         self.active_bets = {}      # bet_key → total amount placed
         self.last_result = None
@@ -62,6 +63,7 @@ class RouletteApp:
         self.ball_angle = 0
         self.board_buttons = {}    # bet_key → (widget, base_label, base_bg)
 
+        self.root.protocol("WM_DELETE_WINDOW", self.back_to_lobby)
         self.build_ui()
 
     # ── UI construction ──────────────────────────────────────────────────────
@@ -166,6 +168,16 @@ class RouletteApp:
         tk.Button(left, text="Reset Bankroll ($1,000)", font=("Arial", 9),
                   bg="#566573", fg="white", width=18,
                   command=self.reset_bankroll).pack(pady=2)
+
+        if self.on_close:
+            tk.Button(left, text="← Back to Lobby", font=("Arial", 9),
+                      bg="#2c3e50", fg="white", width=18,
+                      command=self.back_to_lobby).pack(pady=(8, 2))
+
+    def back_to_lobby(self):
+        if self.on_close:
+            self.on_close(self.bankroll)
+        self.root.destroy()
 
     def _build_board(self, parent):
         right = tk.Frame(parent, bg="#0b3d2e")
