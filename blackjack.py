@@ -1,6 +1,13 @@
 import tkinter as tk
 from tkinter import messagebox
 import random
+from theme import (BG_HDR, TABLE, TABLE_LT, CTRL, GOLD, GOLD_DIM,
+                   CARD_BG, SUIT_RED, SUIT_BLK,
+                   HDR_TEXT, TABLE_TEXT, TABLE_LT_TEXT, CTRL_TEXT,
+                   WIN_COLOR, LOSS_COLOR, PUSH_COLOR, PERSONALITY_COLORS,
+                   F_H2, F_LABEL, F_VALUE, F_RESULT, F_BTN_LG, F_BTN_SM, F_CHIP,
+                   contrast_text, styled_btn, _bind_hover, gold_divider)
+from blackjack_ai import BlackjackAI
 
 SUITS = ['♠', '♥', '♦', '♣']
 RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
@@ -29,14 +36,18 @@ def is_blackjack(hand):
 
 
 class BlackjackApp:
-    def __init__(self, root, bankroll=1000, on_close=None):
+    def __init__(self, root, bankroll=1000, on_close=None, ai_players=None):
         self.root = root
         self.bankroll = bankroll
         self.on_close = on_close
+        self.session_log = []
+        self._bj_ais = [BlackjackAI(p) for p in ai_players] if ai_players else []
+        self._ai_widgets = []
+        self._human_last_net = None
 
         self.root.title("Casino Blackjack")
-        self.root.geometry("960x700")
-        self.root.minsize(880, 640)
+        self.root.geometry("960x780")
+        self.root.minsize(880, 700)
         self.root.configure(bg="#0b3d2e")
         self.root.protocol("WM_DELETE_WINDOW", self.back_to_lobby)
 
@@ -45,6 +56,7 @@ class BlackjackApp:
         self.player_hand = []
         self.dealer_hand = []
         self.state = "betting"   # betting | playing | result
+        self._cancel_id = None
         self._new_shoe()
         self._build_ui()
 
@@ -62,122 +74,263 @@ class BlackjackApp:
     # ── UI ───────────────────────────────────────────────────────────────────
 
     def _build_ui(self):
-        # Header
-        header = tk.Frame(self.root, bg="#111111", height=62)
-        header.pack(fill="x")
-        header.pack_propagate(False)
+        self.root.configure(bg=TABLE)
 
-        tk.Label(header, text="♠  CASINO BLACKJACK  ♠", font=("Georgia", 22, "bold"),
-                 fg="gold", bg="#111111").pack(side="left", padx=22, pady=15)
+        # ── Header ────────────────────────────────────────────────────────────
+        hdr = tk.Frame(self.root, bg=BG_HDR, height=58)
+        hdr.pack(fill="x")
+        hdr.pack_propagate(False)
+        inner = tk.Frame(hdr, bg=BG_HDR)
+        inner.pack(fill="both", expand=True, padx=18)
 
-        self.bankroll_label = tk.Label(header, text=f"Bankroll: ${self.bankroll:,}",
-                                       font=("Arial", 17, "bold"), fg="white", bg="#111111")
-        self.bankroll_label.pack(side="right", padx=22)
+        styled_btn(inner, "← Lobby", self.back_to_lobby,
+                   style="muted", font=F_BTN_SM, fg="black").pack(side="left", pady=12)
 
-        # Table
-        table = tk.Frame(self.root, bg="#0b3d2e")
-        table.pack(fill="both", expand=True, padx=18, pady=8)
+        tk.Label(inner, text="♠  BLACKJACK  ♠", font=F_H2,
+                 fg=HDR_TEXT, bg=BG_HDR).pack(side="left", padx=16, pady=12)
 
-        # Dealer section
-        dealer_box = tk.Frame(table, bg="#145a32", bd=2, relief="ridge")
-        dealer_box.pack(fill="x", pady=(0, 4))
+        self.bankroll_label = tk.Label(inner, text=f"Bankroll:  ${self.bankroll:,}",
+                                       font=("Arial", 15, "bold"), fg=HDR_TEXT, bg=BG_HDR)
+        self.bankroll_label.pack(side="right", pady=12)
 
-        dealer_top = tk.Frame(dealer_box, bg="#145a32")
-        dealer_top.pack(fill="x", padx=12, pady=(8, 2))
-        tk.Label(dealer_top, text="DEALER", font=("Arial", 11, "bold"),
-                 fg="#aab7b8", bg="#145a32").pack(side="left")
-        self.dealer_score = tk.Label(dealer_top, text="", font=("Arial", 20, "bold"),
-                                     fg="white", bg="#145a32")
+        gold_divider(self.root)
+
+        # ── Table ─────────────────────────────────────────────────────────────
+        table = tk.Frame(self.root, bg=TABLE)
+        table.pack(fill="both", expand=True, padx=16, pady=8)
+
+        # AI panel on the right (if AI players present)
+        if self._bj_ais:
+            self._build_ai_panel(table)
+
+        # Game area fills the rest
+        game_area = tk.Frame(table, bg=TABLE)
+        game_area.pack(side="left", fill="both", expand=True)
+
+        # Dealer
+        d_box = tk.Frame(game_area, bg=TABLE_LT)
+        d_box.pack(fill="x", pady=(0, 4))
+        d_top = tk.Frame(d_box, bg=TABLE_LT)
+        d_top.pack(fill="x", padx=14, pady=(10, 2))
+        tk.Label(d_top, text="DEALER", font=F_LABEL,
+                 fg=TABLE_LT_TEXT, bg=TABLE_LT).pack(side="left")
+        self.dealer_score = tk.Label(d_top, text="", font=F_VALUE,
+                                     fg=TABLE_LT_TEXT, bg=TABLE_LT)
         self.dealer_score.pack(side="right")
-
-        self.dealer_canvas = tk.Canvas(dealer_box, height=CARD_H + 14,
-                                       bg="#145a32", highlightthickness=0)
-        self.dealer_canvas.pack(fill="x", padx=12, pady=(2, 10))
+        self.dealer_canvas = tk.Canvas(d_box, height=CARD_H + 16,
+                                       bg=TABLE_LT, highlightthickness=0)
+        self.dealer_canvas.pack(fill="x", padx=14, pady=(2, 12))
 
         # Result
-        self.result_label = tk.Label(table, text="", font=("Arial", 20, "bold"),
-                                     fg="white", bg="#0b3d2e", height=2)
+        self.result_label = tk.Label(game_area, text="", font=F_RESULT,
+                                     fg=TABLE_TEXT, bg=TABLE, height=2)
         self.result_label.pack()
 
-        # Player section
-        player_box = tk.Frame(table, bg="#145a32", bd=2, relief="ridge")
-        player_box.pack(fill="x", pady=(4, 0))
-
-        player_top = tk.Frame(player_box, bg="#145a32")
-        player_top.pack(fill="x", padx=12, pady=(8, 2))
-        tk.Label(player_top, text="PLAYER", font=("Arial", 11, "bold"),
-                 fg="#aab7b8", bg="#145a32").pack(side="left")
-        self.player_score = tk.Label(player_top, text="", font=("Arial", 20, "bold"),
-                                     fg="white", bg="#145a32")
+        # Player
+        p_box = tk.Frame(game_area, bg=TABLE_LT)
+        p_box.pack(fill="x", pady=(4, 0))
+        p_top = tk.Frame(p_box, bg=TABLE_LT)
+        p_top.pack(fill="x", padx=14, pady=(10, 2))
+        tk.Label(p_top, text="YOUR HAND", font=F_LABEL,
+                 fg=TABLE_LT_TEXT, bg=TABLE_LT).pack(side="left")
+        self.player_score = tk.Label(p_top, text="", font=F_VALUE,
+                                     fg=TABLE_LT_TEXT, bg=TABLE_LT)
         self.player_score.pack(side="right")
+        self.player_canvas = tk.Canvas(p_box, height=CARD_H + 16,
+                                       bg=TABLE_LT, highlightthickness=0)
+        self.player_canvas.pack(fill="x", padx=14, pady=(2, 12))
 
-        self.player_canvas = tk.Canvas(player_box, height=CARD_H + 14,
-                                       bg="#145a32", highlightthickness=0)
-        self.player_canvas.pack(fill="x", padx=12, pady=(2, 10))
+        # ── Controls ──────────────────────────────────────────────────────────
+        gold_divider(self.root)
+        bar = tk.Frame(self.root, bg=CTRL)
+        bar.pack(fill="x")
+        inner_bar = tk.Frame(bar, bg=CTRL)
+        inner_bar.pack(fill="x", padx=18, pady=12)
 
-        # Controls bar
-        bar = tk.Frame(self.root, bg="#1c2833", bd=2, relief="ridge")
-        bar.pack(fill="x", padx=18, pady=(0, 14))
-
-        # Chips
-        chip_col = tk.Frame(bar, bg="#1c2833")
-        chip_col.pack(side="left", padx=14, pady=10)
-
-        tk.Label(chip_col, text="Select Chip", font=("Arial", 9, "bold"),
-                 fg="#aab7b8", bg="#1c2833").pack(anchor="w")
-
-        chip_row = tk.Frame(chip_col, bg="#1c2833")
+        # Chip selector
+        chip_col = tk.Frame(inner_bar, bg=CTRL)
+        chip_col.pack(side="left")
+        tk.Label(chip_col, text="SELECT CHIP", font=F_LABEL,
+                 fg=CTRL_TEXT, bg=CTRL).pack(anchor="w", pady=(0, 6))
+        chip_row = tk.Frame(chip_col, bg=CTRL)
         chip_row.pack()
-
-        chips = [(5, "#e74c3c"), (10, "#3498db"), (25, "#27ae60"),
-                 (50, "#e67e22"), (100, "#8e44ad"), (500, "#f1c40f")]
         self.chip_btns = {}
-        for amt, color in chips:
-            btn = tk.Button(chip_row, text=f"${amt}", font=("Arial", 9, "bold"),
-                            bg=color, fg="black", width=5, height=1, relief="raised", bd=2,
+        for amt, color in [(5,"#a93226"),(10,"#1f618d"),(25,"#1a7a40"),
+                           (50,"#b9770e"),(100,"#5b2c6f"),(500,"#c8a84b")]:
+            btn = tk.Button(chip_row, text=f"${amt}", font=F_CHIP,
+                            bg=color, fg="black", width=5, height=2,
+                            relief="flat", bd=0, cursor="hand2",
                             command=lambda a=amt: self._add_chip(a))
             btn.pack(side="left", padx=2)
+            _bind_hover(btn, color, "black", color, "black")
             self.chip_btns[amt] = btn
         self._set_chip(25)
 
         # Bet display
-        bet_col = tk.Frame(bar, bg="#1c2833")
-        bet_col.pack(side="left", padx=18, pady=10)
-
-        tk.Label(bet_col, text="Current Bet", font=("Arial", 9, "bold"),
-                 fg="#aab7b8", bg="#1c2833").pack()
-        self.bet_label = tk.Label(bet_col, text="$0", font=("Arial", 22, "bold"),
-                                  fg="gold", bg="#1c2833", width=7)
+        bet_col = tk.Frame(inner_bar, bg=CTRL)
+        bet_col.pack(side="left", padx=22)
+        tk.Label(bet_col, text="CURRENT BET", font=F_LABEL,
+                 fg=CTRL_TEXT, bg=CTRL).pack()
+        self.bet_label = tk.Label(bet_col, text="$0", font=("Arial", 24, "bold"),
+                                  fg=CTRL_TEXT, bg=CTRL, width=6)
         self.bet_label.pack()
-        tk.Button(bet_col, text="Clear", font=("Arial", 8), bg="#566573", fg="white",
-                  width=5, command=self._clear_bet).pack(pady=2)
+        styled_btn(bet_col, "Clear", self._clear_bet,
+                   style="muted", font=F_BTN_SM, width=5, fg="black").pack(pady=2)
 
         # Action buttons
-        act = tk.Frame(bar, bg="#1c2833")
-        act.pack(side="right", padx=14, pady=10)
+        act = tk.Frame(inner_bar, bg=CTRL)
+        act.pack(side="right")
 
-        self.deal_btn = tk.Button(act, text="DEAL", font=("Arial", 13, "bold"),
-                                  bg="gold", fg="black", width=8, height=2,
-                                  command=self._deal)
+        self.deal_btn = styled_btn(act, "DEAL", self._deal,
+                                   style="gold", font=F_BTN_LG, width=8, height=2, fg="black")
         self.deal_btn.pack(side="left", padx=3)
 
-        self.hit_btn = tk.Button(act, text="HIT", font=("Arial", 13, "bold"),
-                                 bg="#27ae60", fg="black", width=8, height=2,
-                                 state="disabled", command=self._hit)
+        self.hit_btn = styled_btn(act, "HIT", self._hit,
+                                  style="green", font=F_BTN_LG, width=8, height=2,
+                                  state="disabled", fg="black")
         self.hit_btn.pack(side="left", padx=3)
 
-        self.stand_btn = tk.Button(act, text="STAND", font=("Arial", 13, "bold"),
-                                   bg="#e67e22", fg="black", width=8, height=2,
-                                   state="disabled", command=self._stand)
+        self.stand_btn = styled_btn(act, "STAND", self._stand,
+                                    style="orange", font=F_BTN_LG, width=8, height=2,
+                                    state="disabled", fg="black")
         self.stand_btn.pack(side="left", padx=3)
 
-        self.double_btn = tk.Button(act, text="DOUBLE", font=("Arial", 13, "bold"),
-                                    bg="#8e44ad", fg="black", width=8, height=2,
-                                    state="disabled", command=self._double)
+        self.double_btn = styled_btn(act, "DOUBLE", self._double,
+                                     style="purple", font=F_BTN_LG, width=8, height=2,
+                                     state="disabled", fg="black")
         self.double_btn.pack(side="left", padx=3)
 
-        tk.Button(act, text="Lobby", font=("Arial", 10), bg="#2c3e50", fg="white",
-                  width=7, height=2, command=self.back_to_lobby).pack(side="left", padx=3)
+        self.cancel_btn = styled_btn(act, "CANCEL BET", self._cancel_deal,
+                                     style="cancel", font=F_BTN_SM, width=10, height=2,
+                                     state="disabled", fg="black")
+        self.cancel_btn.pack(side="left", padx=3)
+
+    # ── AI panel ──────────────────────────────────────────────────────────────
+
+    def _build_ai_panel(self, parent):
+        panel = tk.Frame(parent, bg=BG_HDR, width=196)
+        panel.pack(side="right", fill="y", padx=(8, 0))
+        panel.pack_propagate(False)
+
+        tk.Label(panel, text="AI PLAYERS", font=F_LABEL,
+                 fg=GOLD, bg=BG_HDR).pack(pady=(12, 4))
+        tk.Frame(panel, bg=GOLD_DIM, height=1).pack(fill="x", padx=10, pady=(0, 6))
+
+        self._ai_widgets = []
+        for ai in self._bj_ais:
+            card = tk.Frame(panel, bg=CTRL, padx=8, pady=4)
+            card.pack(fill="x", padx=8, pady=2)
+            accent_color = PERSONALITY_COLORS.get(ai.personality, GOLD)
+            tk.Frame(card, bg=accent_color, height=2).pack(fill="x", pady=(0, 4))
+
+            tk.Label(card, text=ai.name.upper(), font=("Arial", 10, "bold"),
+                     fg=accent_color, bg=CTRL).pack(anchor="w")
+
+            bankroll_lbl = tk.Label(card, text=f"${ai.bankroll:,}",
+                                    font=("Arial", 11, "bold"), fg=HDR_TEXT, bg=CTRL)
+            bankroll_lbl.pack(anchor="w")
+
+            bet_lbl = tk.Label(card, text="Bet: —", font=("Arial", 9),
+                               fg=CTRL_TEXT, bg=CTRL)
+            bet_lbl.pack(anchor="w")
+
+            result_lbl = tk.Label(card, text="—", font=("Arial", 9),
+                                  fg=CTRL_TEXT, bg=CTRL)
+            result_lbl.pack(anchor="w")
+
+            hand_canvas = tk.Canvas(card, height=44, bg=CTRL, highlightthickness=0)
+            hand_canvas.pack(fill="x", pady=(2, 0))
+
+            self._ai_widgets.append({
+                "bankroll":    bankroll_lbl,
+                "bet":         bet_lbl,
+                "result":      result_lbl,
+                "hand_canvas": hand_canvas,
+            })
+
+        # ── Last round ────────────────────────────────────────────────────────
+        tk.Frame(panel, bg=GOLD_DIM, height=1).pack(fill="x", padx=10, pady=(6, 3))
+        tk.Label(panel, text="LAST ROUND", font=("Arial", 8, "bold"),
+                 fg=GOLD, bg=BG_HDR).pack(anchor="w", padx=12)
+
+        self._round_rows = []
+        names = ["You"] + [ai.name for ai in self._bj_ais]
+        for name in names:
+            row = tk.Frame(panel, bg=BG_HDR)
+            row.pack(fill="x", padx=10)
+            tk.Label(row, text=name, font=("Arial", 8), fg=CTRL_TEXT,
+                     bg=BG_HDR, width=10, anchor="w").pack(side="left")
+            net_lbl = tk.Label(row, text="—", font=("Arial", 8),
+                               fg=CTRL_TEXT, bg=BG_HDR)
+            net_lbl.pack(side="right")
+            self._round_rows.append(net_lbl)
+
+        # ── Leaderboard ───────────────────────────────────────────────────────
+        tk.Frame(panel, bg=GOLD_DIM, height=1).pack(fill="x", padx=10, pady=(6, 3))
+        tk.Label(panel, text="LEADERBOARD", font=("Arial", 8, "bold"),
+                 fg=GOLD, bg=BG_HDR).pack(anchor="w", padx=12)
+
+        self._lbrd_rows = []
+        for _ in range(4):
+            lbl = tk.Label(panel, text="", font=("Arial", 8),
+                           fg=CTRL_TEXT, bg=BG_HDR, anchor="w")
+            lbl.pack(fill="x", padx=12)
+            self._lbrd_rows.append(lbl)
+
+    def _update_ai_panel(self):
+        for ai, w in zip(self._bj_ais, self._ai_widgets):
+            w["bankroll"].config(text=f"${ai.bankroll:,}")
+            if ai.bet > 0:
+                w["bet"].config(text=f"Bet: ${ai.bet:,}")
+            else:
+                w["bet"].config(text="Bet: —")
+            if ai.last_result is not None:
+                net = ai.last_net
+                net_str = f"+${net:,}" if net > 0 else f"-${abs(net):,}" if net < 0 else "$0"
+                color = "#4caf50" if net > 0 else "#e74c3c" if net < 0 else CTRL_TEXT
+                w["result"].config(text=f"{ai.last_result}  {net_str}", fg=color)
+                self._draw_mini_hand(w["hand_canvas"], ai.hand)
+            else:
+                w["result"].config(text="—", fg=CTRL_TEXT)
+                w["hand_canvas"].delete("all")
+
+    def _update_round_summary(self):
+        nets = [self._human_last_net] + [ai.last_net for ai in self._bj_ais]
+        for lbl, net in zip(self._round_rows, nets):
+            if net is None:
+                lbl.config(text="—", fg=CTRL_TEXT)
+            else:
+                s = f"+${net:,}" if net > 0 else f"-${abs(net):,}" if net < 0 else "$0"
+                lbl.config(text=s, fg="#4caf50" if net > 0 else "#e74c3c" if net < 0 else CTRL_TEXT)
+
+    def _update_leaderboard(self):
+        players = [("You", self.bankroll)] + [(ai.name, ai.bankroll) for ai in self._bj_ais]
+        players.sort(key=lambda x: x[1], reverse=True)
+        for rank, (lbl, (name, br)) in enumerate(zip(self._lbrd_rows, players), 1):
+            lbl.config(text=f"{rank}  {name:<11} ${br:,}",
+                       fg=GOLD if name == "You" else HDR_TEXT)
+
+    _BJ_MW, _BJ_MH = 30, 38   # mini-card size for AI panel
+
+    def _draw_mini_hand(self, canvas, hand):
+        """Draw all cards in an AI hand as small cards in the panel canvas."""
+        canvas.delete("all")
+        if not hand:
+            return
+        x = 4
+        for rank, suit in hand:
+            canvas.create_rectangle(x+2, 4, x+self._BJ_MW+2, 4+self._BJ_MH,
+                                     fill="#061a10", outline="")
+            canvas.create_rectangle(x, 2, x+self._BJ_MW, 2+self._BJ_MH,
+                                     fill=CARD_BG, outline="#c8b89a", width=1)
+            col = SUIT_RED if suit in RED_SUITS else SUIT_BLK
+            canvas.create_text(x+4,             2+5,           text=rank,
+                                font=("Arial", 8, "bold"), fill=col, anchor="nw")
+            canvas.create_text(x+4,             2+15,          text=suit,
+                                font=("Arial", 8), fill=col, anchor="nw")
+            canvas.create_text(x+self._BJ_MW//2, 2+self._BJ_MH//2, text=suit,
+                                font=("Arial", 16), fill=col)
+            x += self._BJ_MW + 5
 
     # ── Card drawing ──────────────────────────────────────────────────────────
 
@@ -189,15 +342,19 @@ class BlackjackApp:
             x += CARD_W + 8
 
     def _draw_card(self, canvas, x, y, rank, suit, face_down=False):
+        # Shadow
+        canvas.create_rectangle(x + 3, y + 3, x + CARD_W + 3, y + CARD_H + 3,
+                                 fill="#061a10", outline="")
+        # Face
         canvas.create_rectangle(x, y, x + CARD_W, y + CARD_H,
-                                 fill="white", outline="#bbb", width=2)
+                                 fill=CARD_BG, outline="#c8b89a", width=1)
         if face_down:
             canvas.create_rectangle(x + 5, y + 5, x + CARD_W - 5, y + CARD_H - 5,
-                                     fill="#1a5276", outline="")
+                                     fill="#1a3a6b", outline="")
             canvas.create_text(x + CARD_W // 2, y + CARD_H // 2,
                                 text="?", font=("Arial", 22, "bold"), fill="white")
         else:
-            color = "#c0392b" if suit in RED_SUITS else "#17202a"
+            color = SUIT_RED if suit in RED_SUITS else SUIT_BLK
             canvas.create_text(x + 7, y + 9, text=rank,
                                 font=("Arial", 12, "bold"), fill=color, anchor="nw")
             canvas.create_text(x + 7, y + 24, text=suit,
@@ -257,8 +414,8 @@ class BlackjackApp:
     def _set_chip(self, amount):
         self.chip_amount = amount
         for amt, btn in self.chip_btns.items():
-            btn.config(relief="sunken" if amt == amount else "raised",
-                       bd=3 if amt == amount else 2)
+            btn.config(relief="solid" if amt == amount else "flat",
+                       bd=2 if amt == amount else 0)
 
     def _add_chip(self, amount):
         if self.state != "betting":
@@ -269,6 +426,7 @@ class BlackjackApp:
         self._set_chip(amount)
         self.bet += amount
         self.bet_label.config(text=f"${self.bet:,}")
+        self._start_cancel_timer()
 
     def _clear_bet(self):
         if self.state != "betting":
@@ -278,17 +436,54 @@ class BlackjackApp:
 
     # ── Game actions ──────────────────────────────────────────────────────────
 
+    def _start_cancel_timer(self):
+        if self._cancel_id:
+            self.root.after_cancel(self._cancel_id)
+            self._cancel_id = None
+        self._cancel_secs = 7
+        self.cancel_btn.config(state="normal", text=f"CANCEL BET\n{self._cancel_secs}s")
+        self._tick_cancel()
+
+    def _tick_cancel(self):
+        if self._cancel_secs <= 0:
+            self._hide_cancel()
+            return
+        self.cancel_btn.config(text=f"CANCEL BET\n{self._cancel_secs}s")
+        self._cancel_secs -= 1
+        self._cancel_id = self.root.after(1000, self._tick_cancel)
+
+    def _hide_cancel(self):
+        if self._cancel_id:
+            self.root.after_cancel(self._cancel_id)
+            self._cancel_id = None
+        self.cancel_btn.config(state="disabled", text="CANCEL BET")
+
+    def _cancel_deal(self):
+        self._hide_cancel()
+        self._clear_bet()
+        self.result_label.config(text="Bet cancelled — chips returned", fg=TABLE_TEXT)
+
     def _deal(self):
         if self.bet == 0:
             messagebox.showwarning("No Bet", "Place a bet before dealing.")
             return
 
+        self._hide_cancel()
         self.player_hand = []
         self.dealer_hand = []
         self.state = "playing"
         self.result_label.config(text="")
         self._set_buttons("dealer")   # locked during animation
         self._refresh(hide_hole=True)
+
+        # Set up AI bets before dealing; clear last-round cards
+        for bj_ai in self._bj_ais:
+            bj_ai.start_hand()
+            bj_ai.choose_bet()
+        for w in self._ai_widgets:
+            w["hand_canvas"].delete("all")
+        if self._bj_ais:
+            self._update_ai_panel()
 
         # Deal in casino order: player, dealer, player, dealer — one card every 280ms
         sequence = [
@@ -300,6 +495,16 @@ class BlackjackApp:
 
         def deal_step(i):
             if i >= len(sequence):
+                # Deal and auto-play AI hands (no animation)
+                for bj_ai in self._bj_ais:
+                    if bj_ai.bet > 0:
+                        bj_ai.hand.append(self._deal_card())
+                        bj_ai.hand.append(self._deal_card())
+                        while bj_ai.decide() == "hit":
+                            bj_ai.hand.append(self._deal_card())
+                if self._bj_ais:
+                    self._update_ai_panel()
+
                 self._set_buttons("playing")
                 player_bj = is_blackjack(self.player_hand)
                 dealer_bj = is_blackjack(self.dealer_hand)
@@ -383,31 +588,55 @@ class BlackjackApp:
         else:
             self._end_round("push")
 
+    def _finish_dealer_silently(self):
+        """Draw dealer to 17+ without animation (needed for AI resolution)."""
+        while self.dealer_hand and hand_value(self.dealer_hand) < 17:
+            self.dealer_hand.append(self._deal_card())
+
     def _end_round(self, outcome):
         self.state = "result"
         self._set_buttons("result")
+        self._finish_dealer_silently()
         self._refresh(hide_hole=False)
 
         if outcome == "blackjack":
             gain = int(self.bet * 1.5)
             self.bankroll += gain
-            self.result_label.config(text=f"BLACKJACK!  +${gain:,}", fg="#f1c40f")
+            self._human_last_net = gain
+            self.result_label.config(text=f"BLACKJACK!  +${gain:,}", fg=WIN_COLOR)
+            self.session_log.append({"game": "Blackjack", "bet": self.bet, "result": "Blackjack", "net": gain})
         elif outcome == "win":
             self.bankroll += self.bet
-            self.result_label.config(text=f"YOU WIN!  +${self.bet:,}", fg="#2ecc71")
+            self._human_last_net = self.bet
+            self.result_label.config(text=f"YOU WIN!  +${self.bet:,}", fg=WIN_COLOR)
+            self.session_log.append({"game": "Blackjack", "bet": self.bet, "result": "Win", "net": self.bet})
         elif outcome == "dealer_bust":
             self.bankroll += self.bet
-            self.result_label.config(text=f"DEALER BUSTS — YOU WIN!  +${self.bet:,}", fg="#2ecc71")
+            self._human_last_net = self.bet
+            self.result_label.config(text=f"DEALER BUSTS — YOU WIN!  +${self.bet:,}", fg=WIN_COLOR)
+            self.session_log.append({"game": "Blackjack", "bet": self.bet, "result": "Dealer Bust", "net": self.bet})
         elif outcome in ("lose", "bust"):
             self.bankroll -= self.bet
+            self._human_last_net = -self.bet
             msg = "BUST!" if outcome == "bust" else "DEALER WINS"
-            self.result_label.config(text=f"{msg}  -${self.bet:,}", fg="#e74c3c")
+            self.result_label.config(text=f"{msg}  -${self.bet:,}", fg=LOSS_COLOR)
+            self.session_log.append({"game": "Blackjack", "bet": self.bet, "result": msg, "net": -self.bet})
         elif outcome == "push":
-            self.result_label.config(text="PUSH — Bet returned", fg="white")
+            self._human_last_net = 0
+            self.result_label.config(text="PUSH — Bet returned", fg=PUSH_COLOR)
+            self.session_log.append({"game": "Blackjack", "bet": self.bet, "result": "Push", "net": 0})
 
         self.bankroll_label.config(text=f"Bankroll: ${self.bankroll:,}")
         self.bet = 0
         self.bet_label.config(text="$0")
+
+        # Resolve AI players against the (now fully played) dealer hand
+        for bj_ai in self._bj_ais:
+            bj_ai.resolve(self.dealer_hand)
+        if self._bj_ais:
+            self._update_ai_panel()
+            self._update_round_summary()
+            self._update_leaderboard()
 
         if self.bankroll <= 0:
             messagebox.showinfo("Broke!", "You ran out of money! Resetting to $1,000.")
@@ -422,7 +651,7 @@ class BlackjackApp:
 
     def back_to_lobby(self):
         if self.on_close:
-            self.on_close(self.bankroll)
+            self.on_close(self.bankroll, self.session_log)
         self.root.destroy()
 
 
