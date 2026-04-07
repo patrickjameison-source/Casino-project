@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Roulette — Casino Royale{% endblock %}
+
+{% block body %}
+<!-- Header -->
+<div class="site-header">
+  <a href="/" class="back-btn" id="back-btn">← Lobby</a>
+  <h1>♦ &nbsp;ROULETTE&nbsp; ♦</h1>
+  <div class="bankroll-display" id="bankroll">$1,000</div>
+</div>
+<div class="gold-line"></div>
+
+<div style="display:grid;grid-template-columns:220px 1fr 190px;gap:16px;padding:16px;height:calc(100vh - 57px - 1px - 88px);overflow:hidden;">
+
+  <!-- Left: wheel result + history + AI -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="bg-ctrl rounded p-16" style="text-align:center;">
+      <div style="font-size:0.7rem;color:#777;letter-spacing:.1em;margin-bottom:10px;">LAST SPIN</div>
+      <div id="spin-result-display" style="color:#555;font-size:0.9rem;">Spin to play!</div>
+      <div id="net-display" style="font-size:1rem;font-weight:bold;min-height:1.4em;margin-top:6px;"></div>
+    </div>
+
+    <div class="bg-ctrl rounded p-16">
+      <div style="font-size:0.7rem;color:#777;letter-spacing:.1em;margin-bottom:8px;">RECENT RESULTS</div>
+      <div class="recent-results" id="recent-results"></div>
+    </div>
+
+    <div class="ai-panel" style="flex:1;">
+      <h3>AI PLAYERS</h3>
+      <div id="ai-cards-container"></div>
+    </div>
+  </div>
+
+  <!-- Center: betting board -->
+  <div class="bet-board" style="overflow-y:auto;">
+    <div class="board-zero">
+      <button class="num-cell green" style="width:100%;max-width:60px;"
+              onclick="placeBet('n_0', chipAmt)">0</button>
+    </div>
+    <div class="board-numbers" id="board-numbers"></div>
+    <div class="board-outside">
+      <div class="outside-row">
+        <button class="outside-cell dozen-cell" onclick="placeBet('dozen1', chipAmt)">1st 12</button>
+        <button class="outside-cell dozen-cell" onclick="placeBet('dozen2', chipAmt)">2nd 12</button>
+        <button class="outside-cell dozen-cell" onclick="placeBet('dozen3', chipAmt)">3rd 12</button>
+      </div>
+      <div class="outside-row">
+        <button class="outside-cell low-cell"   onclick="placeBet('low',   chipAmt)">1–18</button>
+        <button class="outside-cell even-cell"  onclick="placeBet('even',  chipAmt)">EVEN</button>
+        <button class="outside-cell red-cell"   onclick="placeBet('red',   chipAmt)">RED</button>
+        <button class="outside-cell black-cell" onclick="placeBet('black', chipAmt)">BLACK</button>
+        <button class="outside-cell odd-cell"   onclick="placeBet('odd',   chipAmt)">ODD</button>
+        <button class="outside-cell high-cell"  onclick="placeBet('high',  chipAmt)">19–36</button>
+      </div>
+      <div class="outside-row">
+        <button class="outside-cell col-cell" onclick="placeBet('col1', chipAmt)">Col 1</button>
+        <button class="outside-cell col-cell" onclick="placeBet('col2', chipAmt)">Col 2</button>
+        <button class="outside-cell col-cell" onclick="placeBet('col3', chipAmt)">Col 3</button>
+      </div>
+    </div>
+
+    <!-- Active bets summary -->
+    <div id="active-bets-wrap" style="margin-top:12px;">
+      <div style="font-size:0.7rem;color:#777;margin-bottom:4px;">ACTIVE BETS</div>
+      <div id="active-bets" style="font-size:0.8rem;color:#bbb;min-height:1em;">None</div>
+    </div>
+  </div>
+
+  <!-- Right: controls -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="bg-ctrl rounded p-16" style="text-align:center;">
+      <div style="font-size:0.7rem;color:#777;margin-bottom:6px;">TOTAL BET</div>
+      <div class="bet-display" id="total-bet">$0</div>
+    </div>
+
+    <div class="bg-ctrl rounded p-16">
+      <div style="font-size:0.7rem;color:#777;margin-bottom:8px;">SELECT CHIP</div>
+      <div class="chip-row" style="flex-wrap:wrap;gap:6px;">
+        <button class="chip chip-5"   onclick="setChip(5)">$5</button>
+        <button class="chip chip-10"  onclick="setChip(10)">$10</button>
+        <button class="chip chip-25"  onclick="setChip(25)">$25</button>
+        <button class="chip chip-50"  onclick="setChip(50)">$50</button>
+        <button class="chip chip-100" onclick="setChip(100)">$100</button>
+        <button class="chip chip-500" onclick="setChip(500)">$500</button>
+      </div>
+    </div>
+
+    <button class="btn btn-gold btn-lg" id="btn-spin" onclick="spin()" style="width:100%;">SPIN</button>
+    <button class="btn btn-dark btn-sm" onclick="clearBets()" style="width:100%;">Clear Bets</button>
+
+    <div class="leaderboard" style="flex:1;">
+      <h4>LEADERBOARD</h4>
+      <div id="leaderboard"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/roulette.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Casino Royale{% endblock %}
+
+{% block body %}
+<div class="lobby-wrap">
+  <div class="lobby-title">♠ ♥ &nbsp;CASINO ROYALE&nbsp; ♦ ♣</div>
+  <div class="lobby-tagline">♦ &nbsp;Your House, Your Rules&nbsp; ♦</div>
+
+  <div class="gold-line" style="margin: 20px 0;"></div>
+
+  <div class="lobby-bankroll-label">YOUR BANKROLL</div>
+  <div class="lobby-bankroll" id="bankroll">$1,000</div>
+
+  <div class="game-buttons">
+    <a href="/roulette" class="game-btn roulette">
+      <span class="game-btn-icon">♦ ♣</span>
+      <span>ROULETTE</span>
+    </a>
+    <a href="/blackjack" class="game-btn blackjack">
+      <span class="game-btn-icon">♠ ♥</span>
+      <span>BLACKJACK</span>
+    </a>
+    <a href="/poker" class="game-btn poker">
+      <span class="game-btn-icon">♥ ♦</span>
+      <span>POKER</span>
+    </a>
+  </div>
+
+  <div class="gold-line" style="margin: 0 0 20px;"></div>
+
+  <!-- Player Standings -->
+  <div style="margin-bottom: 24px;">
+    <div style="font-size:0.8rem;font-weight:bold;color:var(--gold);letter-spacing:.08em;margin-bottom:10px;">
+      PLAYER STANDINGS
+    </div>
+    <table class="standings-table">
+      <thead>
+        <tr>
+          <th>#</th><th>Player</th><th>Balance</th><th>P / L</th>
+        </tr>
+      </thead>
+      <tbody id="standings-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Bet History -->
+  <div>
+    <div style="font-size:0.8rem;font-weight:bold;color:var(--gold);letter-spacing:.08em;margin-bottom:10px;">
+      YOUR BET HISTORY
+    </div>
+    <div id="no-history" style="color:#666;font-size:0.9rem;padding:16px 0;">
+      No bets placed yet this session.
+    </div>
+    <table class="history-table hidden" id="history-table">
+      <thead>
+        <tr><th>#</th><th>Game</th><th>Bet</th><th>Result</th><th>Net</th></tr>
+      </thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadLobby() {
+  const r = await fetch('/api/lobby');
+  const d = await r.json();
+
+  document.getElementById('bankroll').textContent = '$' + d.bankroll.toLocaleString();
+
+  // Standings
+  const rows = [['You', d.bankroll, d.human_pl], ...d.ai_players.map(p => [p.name, p.bankroll, p.profit_loss])];
+  rows.sort((a, b) => b[1] - a[1]);
+  const tbody = document.getElementById('standings-body');
+  tbody.innerHTML = '';
+  rows.forEach(([name, br, pl], i) => {
+    const plStr   = pl > 0 ? `+$${pl.toLocaleString()}` : pl < 0 ? `-$${Math.abs(pl).toLocaleString()}` : '$0';
+    const plColor = pl > 0 ? 'var(--win)' : pl < 0 ? 'var(--loss)' : '#777';
+    const isYou   = name === 'You';
+    const tr = document.createElement('tr');
+    if (isYou) tr.className = 'you';
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td style="color:${isYou ? 'var(--gold)' : '#fff'}">${name}</td>
+      <td>$${br.toLocaleString()}</td>
+      <td style="color:${plColor}">${plStr}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // History
+  const history = d.history;
+  if (history.length === 0) {
+    document.getElementById('no-history').classList.remove('hidden');
+    document.getElementById('history-table').classList.add('hidden');
+  } else {
+    document.getElementById('no-history').classList.add('hidden');
+    document.getElementById('history-table').classList.remove('hidden');
+    const hbody = document.getElementById('history-body');
+    hbody.innerHTML = '';
+    const rev = [...history].reverse();
+    rev.forEach((e, i) => {
+      const net = e.net;
+      const netStr   = net > 0 ? `+$${net.toLocaleString()}` : net < 0 ? `-$${Math.abs(net).toLocaleString()}` : '$0';
+      const netColor = net > 0 ? 'var(--win)' : net < 0 ? 'var(--loss)' : '#777';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${history.length - i}</td>
+        <td>${e.game}</td>
+        <td>$${e.bet.toLocaleString()}</td>
+        <td>${e.result}</td>
+        <td style="color:${netColor}">${netStr}</td>`;
+      hbody.appendChild(tr);
+    });
+  }
+}
+
+loadLobby();
+</script>
+{% endblock %}

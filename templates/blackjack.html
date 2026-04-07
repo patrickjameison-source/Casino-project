@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Blackjack — Casino Royale{% endblock %}
+
+{% block body %}
+<!-- Header -->
+<div class="site-header">
+  <a href="/" class="back-btn" id="back-btn">← Lobby</a>
+  <h1>♠ &nbsp;BLACKJACK&nbsp; ♠</h1>
+  <div class="bankroll-display" id="bankroll">$1,000</div>
+</div>
+<div class="gold-line"></div>
+
+<!-- Main -->
+<div style="display:grid;grid-template-columns:1fr 200px;gap:16px;padding:16px;height:calc(100vh - 57px - 1px - 110px);">
+
+  <!-- Game area -->
+  <div class="table-felt" style="display:flex;flex-direction:column;gap:12px;">
+
+    <!-- Dealer -->
+    <div>
+      <div class="flex justify-between items-center" style="margin-bottom:8px;">
+        <div class="section-label">DEALER</div>
+        <div class="hand-value" id="dealer-value"></div>
+      </div>
+      <div class="cards-row" id="dealer-cards"></div>
+    </div>
+
+    <!-- Result -->
+    <div class="result-banner" id="result-banner"></div>
+
+    <!-- Player -->
+    <div>
+      <div class="flex justify-between items-center" style="margin-bottom:8px;">
+        <div class="section-label">YOUR HAND</div>
+        <div class="hand-value" id="player-value"></div>
+      </div>
+      <div class="cards-row" id="player-cards"></div>
+    </div>
+  </div>
+
+  <!-- AI Panel -->
+  <div class="ai-panel">
+    <h3>AI PLAYERS</h3>
+    <div id="ai-cards-container"></div>
+    <div style="border-top:1px solid var(--gold-dim);margin-top:4px;padding-top:8px;">
+      <div style="font-size:0.7rem;font-weight:bold;color:var(--gold);margin-bottom:4px;">LAST ROUND</div>
+      <div id="last-round"></div>
+    </div>
+    <div class="leaderboard" style="margin-top:4px;">
+      <h4>LEADERBOARD</h4>
+      <div id="leaderboard"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="controls-bar">
+  <!-- Chips -->
+  <div>
+    <div style="font-size:0.7rem;color:#777;margin-bottom:6px;">SELECT CHIP</div>
+    <div class="chip-row" id="chip-row">
+      <button class="chip chip-5"   data-amt="5"   onclick="setChip(5)">$5</button>
+      <button class="chip chip-10"  data-amt="10"  onclick="setChip(10)">$10</button>
+      <button class="chip chip-25"  data-amt="25"  onclick="setChip(25)">$25</button>
+      <button class="chip chip-50"  data-amt="50"  onclick="setChip(50)">$50</button>
+      <button class="chip chip-100" data-amt="100" onclick="setChip(100)">$100</button>
+      <button class="chip chip-500" data-amt="500" onclick="setChip(500)">$500</button>
+    </div>
+  </div>
+
+  <!-- Bet -->
+  <div style="text-align:center;">
+    <div style="font-size:0.7rem;color:#777;">CURRENT BET</div>
+    <div class="bet-display" id="bet-display">$0</div>
+    <button class="btn btn-dark btn-sm" onclick="clearBet()">Clear</button>
+  </div>
+
+  <!-- Actions -->
+  <div style="display:flex;gap:8px;margin-left:auto;">
+    <button class="btn btn-gold btn-lg"    id="btn-deal"   onclick="deal()">DEAL</button>
+    <button class="btn btn-green btn-lg"   id="btn-hit"    onclick="hit()"    disabled>HIT</button>
+    <button class="btn btn-orange btn-lg"  id="btn-stand"  onclick="stand()"  disabled>STAND</button>
+    <button class="btn btn-purple btn-lg"  id="btn-double" onclick="dbl()"    disabled>DOUBLE</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/blackjack.js') }}"></script>
+{% endblock %}
