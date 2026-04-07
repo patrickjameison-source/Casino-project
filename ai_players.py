@@ -84,7 +84,7 @@ class AggressivePlayer(RouletteAI):
     """
 
     def __init__(self):
-        super().__init__("Aggressive", "aggressive")
+        super().__init__("Andrew", "aggressive")
 
     def choose_bet(self) -> None:
         if not self.active:
@@ -108,7 +108,7 @@ class ModeratePlayer(RouletteAI):
     """
 
     def __init__(self):
-        super().__init__("Moderate", "moderate")
+        super().__init__("Marcus", "moderate")
 
     def choose_bet(self) -> None:
         if not self.active:
@@ -133,7 +133,7 @@ class ConservativePlayer(RouletteAI):
     """
 
     def __init__(self):
-        super().__init__("Conservative", "conservative")
+        super().__init__("Clara", "conservative")
 
     def choose_bet(self) -> None:
         if not self.active:
