@@ -202,7 +202,8 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
 .chip-25  { background: #1a7a40; }
 .chip-50  { background: #b9770e; }
 .chip-100 { background: #5b2c6f; }
-.chip-500 { background: #c8a84b; color: #000; }
+.chip-500   { background: #c8a84b; color: #000; }
+.chip-allin { background: #1a1a1a; color: #e53935; border: 1.5px solid #e53935; font-weight: 800; letter-spacing: .03em; }
 
 /* ── AI player panel ──────────────────────────────────────────────────────── */
 .ai-panel {

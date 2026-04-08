@@ -2,6 +2,7 @@
 let chipAmt = 25;
 let currentBet = 0;
 let chipStack = [];
+let playerBankroll = 1000;
 let lastRoundNets = {};
 let communityCount = 0;
 const RED_SUITS = new Set(['♥', '♦']);
@@ -120,8 +121,22 @@ function clearBet() {
   clearChipStack();
 }
 
+function allIn() {
+  if (playerBankroll <= 0) return;
+  currentBet = playerBankroll;
+  chipStack   = [playerBankroll];
+  document.getElementById('bet-display').textContent = '$' + currentBet.toLocaleString();
+  document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-allin').classList.add('active');
+  renderChipStack();
+}
+
 document.querySelectorAll('.chip').forEach(btn => {
-  btn.onclick = () => { setChip(parseInt(btn.textContent.replace('$', ''))); addChip(); };
+  btn.onclick = () => {
+    setChip(parseInt(btn.textContent.replace('$', '')));
+    addChip();
+    document.getElementById('btn-allin').classList.remove('active');
+  };
 });
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -135,6 +150,7 @@ async function deal() {
   lastRoundNets = {};
   communityCount = 0;
 
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   document.getElementById('result-banner').textContent = '';
   document.getElementById('result-banner').className = 'result-banner';
@@ -167,6 +183,7 @@ async function check() {
   lastRoundNets['You'] = state.net;
   (state.ai_players || []).forEach(ai => { lastRoundNets[ai.name] = ai.last_net; });
 
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   document.getElementById('pot-display').textContent = '';
   document.getElementById('hand-name').textContent = state.player_hand_name || '';
@@ -194,6 +211,7 @@ async function fold() {
   lastRoundNets['You'] = state.net;
   (state.ai_players || []).forEach(ai => { lastRoundNets[ai.name] = ai.last_net; });
 
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   document.getElementById('pot-display').textContent = '';
   showResult(state);
@@ -319,6 +337,8 @@ function updateAIPanel(aiPlayers, bankroll, showCards, animate, baseDelay) {
 
 // Full state render (used on init — no animation)
 function render(state) {
+  playerBankroll = state.bankroll;
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   document.getElementById('pot-display').textContent = state.pot > 0 ? `Pot: $${state.pot.toLocaleString()}` : '';
 

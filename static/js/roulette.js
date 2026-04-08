@@ -3,6 +3,7 @@ const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16
 const RED_NUMS    = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 
 let chipAmt = 25;
+let playerBankroll = 1000;
 let wheelRotation = 0;
 let spinning = false;
 let currentActiveBets = {};   // player's current bets — tracked for chip display
@@ -245,6 +246,16 @@ function setChip(amt) {
   document.querySelectorAll('.chip').forEach(b => {
     b.classList.toggle('active', parseInt(b.textContent.replace('$','')) === amt);
   });
+  const ai = document.getElementById('btn-allin');
+  if (ai) ai.classList.remove('active');
+}
+
+function allIn() {
+  if (playerBankroll <= 0) return;
+  chipAmt = playerBankroll;
+  document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+  const ai = document.getElementById('btn-allin');
+  if (ai) ai.classList.add('active');
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -304,6 +315,7 @@ function applyBusted(busted) {
 function renderBets(state) {
   currentActiveBets = state.active_bets || {};
 
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent  = '$' + state.bankroll.toLocaleString();
   document.getElementById('total-bet').textContent = '$' + state.total_bet.toLocaleString();
 
@@ -329,6 +341,7 @@ function renderBets(state) {
 }
 
 function renderSpin(state) {
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent  = '$' + state.bankroll.toLocaleString();
   document.getElementById('total-bet').textContent = '$0';
 

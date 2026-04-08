@@ -1,7 +1,8 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let chipAmt = 25;
 let currentBet = 0;
-let chipStack = [];   // tracks each denomination added for visual chip display
+let chipStack = [];
+let playerBankroll = 1000;
 const RED_SUITS = new Set(['♥', '♦']);
 
 // ── Chip helpers ──────────────────────────────────────────────────────────────
@@ -175,8 +176,22 @@ function clearBet() {
   clearChipStack();
 }
 
+function allIn() {
+  if (playerBankroll <= 0) return;
+  currentBet = playerBankroll;
+  chipStack   = [playerBankroll];
+  document.getElementById('bet-display').textContent = '$' + currentBet.toLocaleString();
+  document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-allin').classList.add('active');
+  renderChipStack();
+}
+
 document.querySelectorAll('.chip').forEach(btn => {
-  btn.onclick = () => { setChip(parseInt(btn.dataset.amt)); addChip(); };
+  btn.onclick = () => {
+    setChip(parseInt(btn.dataset.amt));
+    addChip();
+    document.getElementById('btn-allin').classList.remove('active');
+  };
 });
 
 // ── AI panel ──────────────────────────────────────────────────────────────────
@@ -262,6 +277,7 @@ async function deal() {
   document.getElementById('result-banner').className = 'result-banner';
   document.getElementById('player-value').textContent = '';
   document.getElementById('dealer-value').textContent = '';
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
 
   // Clear hands
@@ -365,6 +381,7 @@ async function dbl() {
 
 // Full state render — no animation (page load / state restore)
 function render(state) {
+  playerBankroll = state.bankroll;
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   renderCards('dealer-cards', state.dealer_hand);
   renderCards('player-cards', state.player_hand);

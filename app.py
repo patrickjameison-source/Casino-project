@@ -33,7 +33,7 @@ def _get_sess():
 
 
 def _flush(sess, game_key):
-    """Copy new session_log entries from a game into session history, then discard the engine."""
+    """Copy new session_log entries from a game into session history."""
     game = sess[game_key]
     if not game:
         return
@@ -43,7 +43,6 @@ def _flush(sess, game_key):
     sess['history'].extend(new)
     sess[offset_key] = len(game.session_log)
     sess['bankroll']  = game.bankroll
-    sess[game_key]    = None   # force fresh engine with correct bankroll on next entry
 
 
 def _sync_bankroll(sess, game):
