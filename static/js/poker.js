@@ -1,6 +1,7 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let chipAmt = 25;
 let currentBet = 0;
+let chipStack = [];
 let lastRoundNets = {};
 let communityCount = 0;
 const RED_SUITS = new Set(['♥', '♦']);
@@ -67,6 +68,38 @@ function appendCards(containerId, hand, mini = false, baseDelay = 0) {
 }
 
 // ── Chip / bet ────────────────────────────────────────────────────────────────
+function chipColor(amt) {
+  if (amt >= 500) return '#6a0dad';
+  if (amt >= 100) return '#1a1a2e';
+  if (amt >= 50)  return '#1565c0';
+  if (amt >= 25)  return '#388e3c';
+  if (amt >= 10)  return '#c62828';
+  return '#bdbdbd';
+}
+function chipLabel(amt) {
+  return amt >= 1000 ? '$' + (amt / 1000) + 'k' : '$' + amt;
+}
+
+function renderChipStack() {
+  const area = document.getElementById('player-bet-area');
+  if (!area) return;
+  area.innerHTML = '';
+  chipStack.forEach((amt, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'bet-chip-visual';
+    chip.style.background = chipColor(amt);
+    if (i > 0) chip.style.marginLeft = '-8px';
+    chip.textContent = chipLabel(amt);
+    area.appendChild(chip);
+  });
+}
+
+function clearChipStack() {
+  chipStack = [];
+  const area = document.getElementById('player-bet-area');
+  if (area) area.innerHTML = '';
+}
+
 function setChip(amt) {
   chipAmt = amt;
   document.querySelectorAll('.chip').forEach(b => {
@@ -76,12 +109,15 @@ function setChip(amt) {
 
 function addChip() {
   currentBet += chipAmt;
+  chipStack.push(chipAmt);
   document.getElementById('bet-display').textContent = '$' + currentBet.toLocaleString();
+  renderChipStack();
 }
 
 function clearBet() {
   currentBet = 0;
   document.getElementById('bet-display').textContent = '$0';
+  clearChipStack();
 }
 
 document.querySelectorAll('.chip').forEach(btn => {
@@ -93,7 +129,9 @@ async function deal() {
   if (currentBet === 0) return;
   const state = await api('/api/poker/deal', { bet: currentBet });
   if (state.error) { alert(state.error); return; }
-  clearBet();
+  currentBet = 0;
+  document.getElementById('bet-display').textContent = '$0';
+  clearChipStack();
   lastRoundNets = {};
   communityCount = 0;
 
@@ -203,6 +241,9 @@ function updateAIPanel(aiPlayers, bankroll, showCards, animate, baseDelay) {
     card.className = 'ai-card';
 
     let statusLine = '';
+    const aiChip = ai.bet > 0
+      ? `<span class="ai-bet-chip" style="background:${chipColor(ai.bet)}">${chipLabel(ai.bet)}</span>`
+      : '';
     if (ai.folded) {
       statusLine = '<span class="text-loss">Folded</span>';
     } else if (ai.last_result) {
@@ -218,7 +259,7 @@ function updateAIPanel(aiPlayers, bankroll, showCards, animate, baseDelay) {
       <div class="ai-card-accent ${ai.personality}"></div>
       <div class="ai-name ${ai.personality}">${ai.name.toUpperCase()}</div>
       <div class="ai-bankroll">$${ai.bankroll.toLocaleString()}</div>
-      <div class="ai-info">${statusLine}</div>
+      <div class="ai-info">${aiChip} ${statusLine}</div>
       <div class="ai-cards-row" id="ai-hand-${ai.name}"></div>`;
     container.appendChild(card);
 

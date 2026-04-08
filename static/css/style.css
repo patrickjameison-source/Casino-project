@@ -556,6 +556,56 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
   from { transform: scale(0); opacity: 0; }
   to   { transform: scale(1); opacity: 1; }
 }
+@keyframes betChipSlide {
+  from { transform: translateY(-10px) scale(0.7); opacity: 0; }
+  to   { transform: translateY(0)     scale(1);   opacity: 1; }
+}
+
+/* ── Player chip stack on table (blackjack & poker) ───────────────────────── */
+.player-bet-area {
+  display: flex;
+  align-items: flex-end;
+  min-height: 36px;
+  padding: 4px 0 0;
+  gap: 0;
+}
+
+.bet-chip-visual {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5rem;
+  font-weight: bold;
+  color: #fff;
+  border: 3px dashed rgba(255,255,255,0.45);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  margin-left: -8px;
+  position: relative;
+  flex-shrink: 0;
+  animation: betChipSlide 0.18s ease-out;
+}
+.bet-chip-visual:first-child { margin-left: 0; }
+
+/* AI bet chip on AI cards */
+.ai-bet-chip {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.45rem;
+  font-weight: bold;
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  margin-right: 4px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
 
 .spin-result-circle {
   width: 100px;

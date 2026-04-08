@@ -1,7 +1,40 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let chipAmt = 25;
 let currentBet = 0;
+let chipStack = [];   // tracks each denomination added for visual chip display
 const RED_SUITS = new Set(['♥', '♦']);
+
+// ── Chip helpers ──────────────────────────────────────────────────────────────
+function chipColor(amount) {
+  if (amount >= 500) return '#c8a84b';
+  if (amount >= 100) return '#5b2c6f';
+  if (amount >= 50)  return '#b9770e';
+  if (amount >= 25)  return '#1a7a40';
+  if (amount >= 10)  return '#1f618d';
+  return '#a93226';
+}
+function chipLabel(amount) {
+  return amount >= 1000 ? Math.round(amount / 1000) + 'k' : amount;
+}
+
+function renderChipStack() {
+  const el = document.getElementById('player-bet-area');
+  if (!el) return;
+  el.innerHTML = '';
+  // Show up to 8 chips overlapping horizontally — like pushing chips onto the table
+  chipStack.slice(-8).forEach(amt => {
+    const div = document.createElement('div');
+    div.className = 'bet-chip-visual';
+    div.style.background = chipColor(amt);
+    div.textContent = chipLabel(amt);
+    el.appendChild(div);
+  });
+}
+
+function clearChipStack() {
+  chipStack = [];
+  renderChipStack();
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(path, body = null) {
@@ -131,11 +164,14 @@ function setChip(amt) {
 function addChip() {
   currentBet += chipAmt;
   document.getElementById('bet-display').textContent = '$' + currentBet.toLocaleString();
+  chipStack.push(chipAmt);
+  renderChipStack();
 }
 
 function clearBet() {
   currentBet = 0;
   document.getElementById('bet-display').textContent = '$0';
+  clearChipStack();
 }
 
 document.querySelectorAll('.chip').forEach(btn => {
@@ -150,11 +186,14 @@ function updateAIPanel(aiPlayers, bankroll, animateCards = false, aiDelay = 0) {
   aiPlayers.forEach(ai => {
     const card = document.createElement('div');
     card.className = 'ai-card';
+    const aiChip = ai.bet > 0
+      ? `<span class="ai-bet-chip" style="background:${chipColor(ai.bet)}">${chipLabel(ai.bet)}</span>`
+      : '';
     card.innerHTML = `
       <div class="ai-card-accent ${ai.personality}"></div>
       <div class="ai-name ${ai.personality}">${ai.name.toUpperCase()}</div>
       <div class="ai-bankroll">$${ai.bankroll.toLocaleString()}</div>
-      <div class="ai-info" id="ai-info-${ai.name}">Bet: ${ai.bet ? '$' + ai.bet.toLocaleString() : '—'}</div>
+      <div class="ai-info" id="ai-info-${ai.name}" style="display:flex;align-items:center;">${aiChip}${ai.bet ? '$' + ai.bet.toLocaleString() : '—'}</div>
       <div class="ai-cards-row" id="ai-hand-${ai.name}"></div>`;
     container.appendChild(card);
 
