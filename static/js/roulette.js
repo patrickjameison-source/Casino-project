@@ -109,37 +109,47 @@ function drawWheel(rotation, highlightIdx = -1, bAngle = -Math.PI / 2, bRadius =
 }
 
 function spinTo(resultNum, callback) {
-  const idx       = WHEEL_ORDER.indexOf(resultNum);
-  const seg       = (2 * Math.PI) / 37;
-  const targetRot = -idx * seg;
+  const idx = WHEEL_ORDER.indexOf(resultNum);
+  const seg = (2 * Math.PI) / 37;
 
-  // Wheel: counter-clockwise, 6–9 full rotations, eases to winning number at top
-  const wheelSpins = 6 + Math.random() * 3;
-  const endRot     = wheelRotation - (wheelRotation % (2 * Math.PI)) - (2 * Math.PI * wheelSpins) + targetRot;
-  const startRot   = wheelRotation;
+  // Wheel: stops at a RANDOM position (not aligned to any specific number at top).
+  // This makes the wheel feel physically independent of the result.
+  const wheelSpins  = 5 + Math.floor(Math.random() * 4);          // 5–8 full laps
+  const randomStop  = Math.random() * 2 * Math.PI;                 // random stopping angle
+  const endRot      = wheelRotation - (wheelRotation % (2 * Math.PI))
+                    - (2 * Math.PI * wheelSpins) + randomStop;
+  const startRot    = wheelRotation;
 
-  // Ball: clockwise (opposite), MUST be an integer number of spins so it ends
-  // exactly back at 12 o'clock — where the winning number has rotated to.
-  const ballSpins      = 10 + Math.floor(Math.random() * 5); // 10–14 whole laps
-  const ballStartAngle = -Math.PI / 2;                        // 12 o'clock
-  const ballEndAngle   = ballStartAngle + 2 * Math.PI * ballSpins;
+  // Calculate where the center of the winning pocket will be on screen once the wheel stops.
+  // Segment idx centre = endRot + idx*seg − π/2 + seg/2
+  const pocketAngle = endRot + idx * seg - Math.PI / 2 + seg / 2;
+
+  // Ball: clockwise (opposite to wheel), makes 10–14 extra laps then ends
+  // precisely at pocketAngle — wherever that happens to be around the wheel.
+  const ballSpins = 10 + Math.floor(Math.random() * 5);
+  const ballStart = -Math.PI / 2;  // ball begins at 12 o'clock
+
+  // Clockwise distance from ballStart to pocketAngle
+  let cwDist = ((pocketAngle - ballStart) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+  if (cwDist < 0.01) cwDist = 2 * Math.PI;  // avoid near-zero jump
+  const ballEndAngle = ballStart + 2 * Math.PI * ballSpins + cwDist;
 
   const ballOuterR  = R * 0.93;  // outer track groove
-  const ballPocketR = R * 0.81;  // resting position inside the numbered pocket
+  const ballPocketR = R * 0.81;  // resting inside the numbered pocket
 
   const duration = 4500;
   const startTs  = performance.now();
 
-  // Wheel uses quartic ease-out; ball uses a slightly softer cubic so they
-  // decelerate at different rates and feel like separate physical objects.
+  // Wheel uses quartic, ball uses cubic — different deceleration rates make
+  // them feel like separate physical objects moving against each other.
   function easeWheel(t) { return 1 - Math.pow(1 - t, 4); }
   function easeBall(t)  { return 1 - Math.pow(1 - t, 3); }
 
   function frame(now) {
-    const t  = Math.min((now - startTs) / duration, 1);
+    const t = Math.min((now - startTs) / duration, 1);
 
     const rot    = startRot + (endRot - startRot) * easeWheel(t);
-    const bAngle = ballStartAngle + (ballEndAngle - ballStartAngle) * easeBall(t);
+    const bAngle = ballStart + (ballEndAngle - ballStart) * easeBall(t);
 
     // Ball drops from outer groove into the pocket over the last 25 % of the spin
     const fallT   = Math.max(0, (t - 0.75) / 0.25);
@@ -151,8 +161,8 @@ function spinTo(resultNum, callback) {
       requestAnimationFrame(frame);
     } else {
       wheelRotation = endRot;
-      // Final frame: ball sitting in winning pocket at 12 o'clock
-      drawWheel(endRot, idx, ballStartAngle, ballPocketR);
+      // Final frame: ball sitting in the winning pocket wherever it landed
+      drawWheel(endRot, idx, pocketAngle, ballPocketR);
       callback();
     }
   }
