@@ -12,12 +12,12 @@
 
 <div style="display:grid;grid-template-columns:220px 1fr 190px;gap:16px;padding:16px;height:calc(100vh - 57px - 1px - 88px);overflow:hidden;">
 
-  <!-- Left: wheel result + history + AI -->
+  <!-- Left: wheel + history + AI -->
   <div style="display:flex;flex-direction:column;gap:12px;">
-    <div class="bg-ctrl rounded p-16" style="text-align:center;">
-      <div style="font-size:0.7rem;color:#777;letter-spacing:.1em;margin-bottom:10px;">LAST SPIN</div>
-      <div id="spin-result-display" style="color:#555;font-size:0.9rem;">Spin to play!</div>
-      <div id="net-display" style="font-size:1rem;font-weight:bold;min-height:1.4em;margin-top:6px;"></div>
+    <div class="bg-ctrl rounded" style="text-align:center;padding:12px 8px;">
+      <canvas id="wheel-canvas" width="200" height="200" style="display:block;margin:0 auto;border-radius:50%;"></canvas>
+      <div id="spin-result-display" style="color:#777;font-size:0.85rem;margin-top:8px;">Spin to play!</div>
+      <div id="net-display" style="font-size:1rem;font-weight:bold;min-height:1.4em;margin-top:4px;"></div>
     </div>
 
     <div class="bg-ctrl rounded p-16">

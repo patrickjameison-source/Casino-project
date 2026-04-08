@@ -103,8 +103,8 @@ function render(state) {
   document.getElementById('bet-controls').style.display   = isBetting ? 'flex' : 'none';
   document.getElementById('round-controls').style.display = !isBetting ? 'flex' : 'none';
 
-  // AI panel
-  updateAIPanel(state.ai_players, state.bankroll, state.state !== 'betting');
+  // AI panel — show cards after showdown/fold even though state reverted to 'betting'
+  updateAIPanel(state.ai_players, state.bankroll, state.state !== 'betting' || !!state.reveal_ai);
 }
 
 function showResult(state) {

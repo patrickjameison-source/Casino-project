@@ -95,11 +95,11 @@ class PokerGame:
         if self.bankroll <= 0:
             self.bankroll = 1000
 
-        state = self.get_state(reveal_ai=True)
-        state.update({'outcome': 'fold', 'net': net})
         self.bet   = 0
         self.pot   = 0
         self.state = 'betting'
+        state = self.get_state(reveal_ai=True)
+        state.update({'outcome': 'fold', 'net': net, 'reveal_ai': True})
         return state
 
     # ── Internal ──────────────────────────────────────────────────────────────
@@ -141,15 +141,16 @@ class PokerGame:
         if self.bankroll <= 0:
             self.bankroll = 1000
 
+        self.bet   = 0
+        self.pot   = 0
+        self.state = 'betting'
         state = self.get_state(reveal_ai=True)
         state.update({
             'outcome':          'win' if human_wins else 'lose',
             'net':              net,
             'player_hand_name': p_name,
+            'reveal_ai':        True,
         })
-        self.bet   = 0
-        self.pot   = 0
-        self.state = 'betting'
         return state
 
     def _resolve_ai_after_fold(self):

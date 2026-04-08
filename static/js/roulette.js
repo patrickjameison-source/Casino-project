@@ -1,7 +1,10 @@
-// ── State ─────────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
+const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+const RED_NUMS    = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+
 let chipAmt = 25;
-const RED_NUMS  = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
-const BLACK_NUMS = new Set([2,4,6,8,10,11,13,15,17,20,22,24,26,28,29,31,33,35]);
+let wheelRotation = 0;   // current resting rotation of the wheel
+let spinning = false;
 const recentResults = [];
 
 function numColor(n) {
@@ -18,26 +21,121 @@ async function api(path, body = null) {
   return r.json();
 }
 
-// ── Board construction ────────────────────────────────────────────────────────
-// Standard layout: rows top=3,mid=2,bot=1; cols 1..12
-// Row order on board: row3=[3,6,9,...36], row2=[2,5,8,...35], row1=[1,4,7,...34]
+// ── Wheel drawing ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('wheel-canvas');
+const ctx    = canvas.getContext('2d');
+const CX = canvas.width  / 2;
+const CY = canvas.height / 2;
+const R  = CX - 4;
+
+function drawWheel(rotation, highlightIdx = -1) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const seg = (2 * Math.PI) / 37;
+
+  // Outer ring
+  ctx.beginPath();
+  ctx.arc(CX, CY, R + 3, 0, 2 * Math.PI);
+  ctx.fillStyle = '#8B7536';
+  ctx.fill();
+
+  for (let i = 0; i < 37; i++) {
+    const n     = WHEEL_ORDER[i];
+    const start = rotation + i * seg - Math.PI / 2;
+    const end   = start + seg;
+
+    ctx.beginPath();
+    ctx.moveTo(CX, CY);
+    ctx.arc(CX, CY, R, start, end);
+    ctx.closePath();
+
+    if (i === highlightIdx)      ctx.fillStyle = '#f5d020';
+    else if (n === 0)            ctx.fillStyle = '#1a7a40';
+    else if (RED_NUMS.has(n))    ctx.fillStyle = '#c0392b';
+    else                         ctx.fillStyle = '#1c1c1c';
+
+    ctx.fill();
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Number label
+    const mid = start + seg / 2;
+    const tx  = CX + R * 0.72 * Math.cos(mid);
+    const ty  = CY + R * 0.72 * Math.sin(mid);
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(mid + Math.PI / 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(n.toString(), 0, 0);
+    ctx.restore();
+  }
+
+  // Center hub
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.14, 0, 2 * Math.PI);
+  ctx.fillStyle = '#8B7536';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(CX, CY, R * 0.09, 0, 2 * Math.PI);
+  ctx.fillStyle = '#c8a84b';
+  ctx.fill();
+
+  // Ball marker (fixed triangle at top)
+  ctx.beginPath();
+  ctx.moveTo(CX, CY - R - 2);
+  ctx.lineTo(CX - 6, CY - R + 10);
+  ctx.lineTo(CX + 6, CY - R + 10);
+  ctx.closePath();
+  ctx.fillStyle = '#f5f0e8';
+  ctx.fill();
+}
+
+function spinTo(resultNum, callback) {
+  const idx      = WHEEL_ORDER.indexOf(resultNum);
+  const seg      = (2 * Math.PI) / 37;
+  // Angle where idx lands at the top (12 o'clock = -π/2)
+  const targetRot = -idx * seg;
+  // Add enough full rotations so we always spin forward
+  const spins    = 6 + Math.random() * 3;
+  const endRot   = wheelRotation - (wheelRotation % (2 * Math.PI)) - (2 * Math.PI * spins) + targetRot;
+  const startRot = wheelRotation;
+  const duration = 4200;
+  const startTs  = performance.now();
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function frame(now) {
+    const t   = Math.min((now - startTs) / duration, 1);
+    const rot = startRot + (endRot - startRot) * easeOut(t);
+    drawWheel(rot, t > 0.97 ? idx : -1);
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      wheelRotation = endRot;
+      drawWheel(endRot, idx);
+      callback();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── Board ─────────────────────────────────────────────────────────────────────
 function buildBoard() {
   const grid = document.getElementById('board-numbers');
   grid.innerHTML = '';
-
-  // Numbers: column-major (col 1 = 1,2,3; col 2 = 4,5,6 ...)
-  // Display as 3 rows × 12 cols
-  // row 0 (top):    3,  6,  9, 12, 15, 18, 21, 24, 27, 30, 33, 36
-  // row 1 (middle): 2,  5,  8, 11, 14, 17, 20, 23, 26, 29, 32, 35
-  // row 2 (bottom): 1,  4,  7, 10, 13, 16, 19, 22, 25, 28, 31, 34
+  // 3 rows × 12 cols: row0=top (multiples of 3), row1=mid, row2=bottom
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 12; col++) {
-      const n = col * 3 + (3 - row);   // row0=+3, row1=+2, row2=+1
+      const n   = col * 3 + (3 - row);
       const btn = document.createElement('button');
-      btn.className = `num-cell ${numColor(n)}`;
-      btn.textContent = n;
-      btn.dataset.n = n;
-      btn.onclick = () => placeBet(`n_${n}`, chipAmt);
+      btn.className       = `num-cell ${numColor(n)}`;
+      btn.textContent     = n;
+      btn.dataset.n       = n;
+      btn.dataset.key     = `n_${n}`;
+      btn.onclick         = () => placeBet(`n_${n}`, chipAmt);
       grid.appendChild(btn);
     }
   }
@@ -46,133 +144,126 @@ function buildBoard() {
 // ── Chip ─────────────────────────────────────────────────────────────────────
 function setChip(amt) {
   chipAmt = amt;
-  document.querySelectorAll('.chip').forEach(b => b.classList.remove('active'));
-  // Mark active by looking at onclick content — simpler: store data-amt
   document.querySelectorAll('.chip').forEach(b => {
-    if (parseInt(b.textContent.replace('$','')) === amt) b.classList.add('active');
+    b.classList.toggle('active', parseInt(b.textContent.replace('$','')) === amt);
   });
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 async function placeBet(betKey, amount) {
+  if (spinning) return;
   const state = await api('/api/roulette/bet', { bet_key: betKey, amount });
   if (state.error) { alert(state.error); return; }
   renderBets(state);
 }
 
 async function clearBets() {
+  if (spinning) return;
   const state = await api('/api/roulette/clear', {});
   renderBets(state);
 }
 
 async function spin() {
-  const btn = document.getElementById('btn-spin');
-  btn.disabled = true;
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('btn-spin').disabled = true;
+
   const state = await api('/api/roulette/spin', {});
-  btn.disabled = false;
-  if (state.error) { alert(state.error); return; }
-  renderSpin(state);
+  if (state.error) {
+    alert(state.error);
+    spinning = false;
+    document.getElementById('btn-spin').disabled = false;
+    return;
+  }
+
+  spinTo(state.spin_result, () => {
+    spinning = false;
+    document.getElementById('btn-spin').disabled = false;
+    renderSpin(state);
+  });
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderBets(state) {
-  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  document.getElementById('bankroll').textContent  = '$' + state.bankroll.toLocaleString();
   document.getElementById('total-bet').textContent = '$' + state.total_bet.toLocaleString();
 
-  // Highlight active bet cells
   document.querySelectorAll('.num-cell, .outside-cell').forEach(el => el.classList.remove('active'));
   Object.keys(state.active_bets || {}).forEach(key => {
-    if (key.startsWith('n_')) {
-      document.querySelectorAll('.num-cell').forEach(el => {
-        if (el.dataset.n == key.slice(2)) el.classList.add('active');
-      });
-    }
-    // Outside bets: find by onclick text match — use data attribute instead
     document.querySelectorAll(`[data-key="${key}"]`).forEach(el => el.classList.add('active'));
   });
 
-  // Bets summary
-  const betsEl = document.getElementById('active-bets');
   const bets = state.active_bets || {};
+  const betsEl = document.getElementById('active-bets');
   if (Object.keys(bets).length === 0) {
     betsEl.textContent = 'None';
   } else {
     betsEl.innerHTML = Object.entries(bets)
-      .map(([k, v]) => `<span style="margin-right:8px;">${k}: <strong>$${v}</strong></span>`)
+      .map(([k,v]) => `<span style="margin-right:8px">${k}: <strong>$${v}</strong></span>`)
       .join('');
   }
-
   renderAI(state.ai_players, state.bankroll);
 }
 
 function renderSpin(state) {
-  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  document.getElementById('bankroll').textContent  = '$' + state.bankroll.toLocaleString();
   document.getElementById('total-bet').textContent = '$0';
 
   const n     = state.spin_result;
   const color = state.result_color;
   const net   = state.net;
 
-  // Big result display
-  const resultEl = document.getElementById('spin-result-display');
-  resultEl.innerHTML = `
-    <div class="spin-result-circle ${color}">
-      <span>${n}</span>
-      <span class="color-label">${color.charAt(0).toUpperCase() + color.slice(1)}</span>
-    </div>`;
+  // Result label under wheel
+  const label = { red:'Red', black:'Black', green:'Green' }[color];
+  document.getElementById('spin-result-display').innerHTML =
+    `<strong style="font-size:1.1rem;color:${color==='red'?'#e74c3c':color==='green'?'#4caf50':'#aaa'}">${n}</strong> &nbsp;${label}`;
 
-  const netEl = document.getElementById('net-display');
+  const netEl  = document.getElementById('net-display');
   const netStr = net > 0 ? `+$${net.toLocaleString()}` : net < 0 ? `-$${Math.abs(net).toLocaleString()}` : '$0';
   netEl.textContent = netStr;
-  netEl.className = net > 0 ? 'text-win' : net < 0 ? 'text-loss' : 'text-muted';
-  netEl.style.fontSize = '1.1rem';
-  netEl.style.fontWeight = 'bold';
+  netEl.style.color = net > 0 ? '#4caf50' : net < 0 ? '#e74c3c' : '#777';
 
-  // Recent results
+  // Recent dots
   recentResults.unshift({ n, color });
-  if (recentResults.length > 20) recentResults.pop();
+  if (recentResults.length > 18) recentResults.pop();
   const recentEl = document.getElementById('recent-results');
   recentEl.innerHTML = '';
   recentResults.forEach(({ n: rn, color: rc }) => {
     const dot = document.createElement('div');
-    dot.className = `res-dot ${rc}`;
+    dot.className   = `res-dot ${rc}`;
     dot.textContent = rn;
     recentEl.appendChild(dot);
   });
 
-  // Clear bet highlights
   document.querySelectorAll('.num-cell, .outside-cell').forEach(el => el.classList.remove('active'));
   document.getElementById('active-bets').textContent = 'None';
 
   renderAI(state.ai_players, state.bankroll);
-  renderLeaderboard(state.ai_players, state.bankroll);
 }
 
 function renderAI(aiPlayers, bankroll) {
   const container = document.getElementById('ai-cards-container');
   container.innerHTML = '';
   (aiPlayers || []).forEach(ai => {
-    const net = ai.last_net;
+    const net    = ai.last_net;
     const netStr = net == null ? '—'
       : net > 0 ? `+$${net.toLocaleString()}` : net < 0 ? `-$${Math.abs(net).toLocaleString()}` : '$0';
-    const netClass = net > 0 ? 'text-win' : net < 0 ? 'text-loss' : 'text-muted';
-    const card = document.createElement('div');
+    const cls    = net > 0 ? 'text-win' : net < 0 ? 'text-loss' : 'text-muted';
+    const card   = document.createElement('div');
     card.className = 'ai-card';
     card.innerHTML = `
       <div class="ai-card-accent ${ai.personality}"></div>
       <div class="ai-name ${ai.personality}">${ai.name.toUpperCase()}</div>
       <div class="ai-bankroll">$${ai.bankroll.toLocaleString()}</div>
-      <div class="ai-info"><span class="${netClass}">${netStr}</span></div>`;
+      <div class="ai-info"><span class="${cls}">${netStr}</span></div>`;
     container.appendChild(card);
   });
-  renderLeaderboard(aiPlayers, bankroll);
-}
 
-function renderLeaderboard(aiPlayers, bankroll) {
-  const lbEl = document.getElementById('leaderboard');
+  // Leaderboard
+  const lbEl   = document.getElementById('leaderboard');
   lbEl.innerHTML = '';
   const players = [['You', bankroll], ...(aiPlayers||[]).map(a => [a.name, a.bankroll])];
-  players.sort((a, b) => b[1] - a[1]);
+  players.sort((a,b) => b[1] - a[1]);
   players.forEach(([name, br], i) => {
     const row = document.createElement('div');
     row.className = 'lb-row' + (name === 'You' ? ' you' : '');
@@ -191,12 +282,12 @@ document.getElementById('back-btn').addEventListener('click', async (e) => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 buildBoard();
 
-// Add data-key to outside cells for highlighting
+// Attach data-key to outside cells for highlight matching
 document.querySelectorAll('.outside-cell').forEach(btn => {
-  // Extract the bet key from the onclick string
-  const match = btn.getAttribute('onclick')?.match(/placeBet\('([^']+)'/);
-  if (match) btn.dataset.key = match[1];
+  const m = btn.getAttribute('onclick')?.match(/placeBet\('([^']+)'/);
+  if (m) btn.dataset.key = m[1];
 });
 
 setChip(25);
-api('/api/roulette/state').then(state => renderBets(state));
+drawWheel(0);
+api('/api/roulette/state').then(renderBets);

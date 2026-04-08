@@ -143,10 +143,10 @@ class BlackjackGame:
         if self.bankroll <= 0:
             self.bankroll = 1000
 
+        self.bet = 0
+        self.state = 'betting'   # must be set BEFORE get_state so DEAL re-enables
         state = self.get_state(hide_hole=False)
         state.update({'outcome': outcome, 'net': net, 'result_str': result_str})
-        self.bet = 0
-        self.state = 'betting'
         return state
 
     def get_state(self, hide_hole=True):
