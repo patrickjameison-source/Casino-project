@@ -1,7 +1,8 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let chipAmt = 25;
 let currentBet = 0;
-let lastRoundNets = {};  // name -> net
+let lastRoundNets = {};
+let communityCount = 0;
 const RED_SUITS = new Set(['♥', '♦']);
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -13,28 +14,63 @@ async function api(path, body = null) {
   return r.json();
 }
 
-// ── Cards ─────────────────────────────────────────────────────────────────────
-function makeCard(rank, suit, mini = false) {
-  const div = document.createElement('div');
-  div.className = 'card' + (mini ? ' card-mini' : '');
-  if (rank === '?') { div.classList.add('face-down'); return div; }
-  div.classList.add(RED_SUITS.has(suit) ? 'red' : 'black');
-  div.innerHTML = `<span class="c-rank">${rank}</span><span class="c-suit">${suit}</span>`;
-  return div;
+// ── Card rendering ────────────────────────────────────────────────────────────
+function makeFlipCard(rank, suit, mini = false) {
+  const wrap = document.createElement('div');
+  wrap.className = 'card-flip' + (mini ? ' card-flip-mini' : '');
+
+  const inner = document.createElement('div');
+  inner.className = 'card-flip-inner';
+
+  const back = document.createElement('div');
+  back.className = 'card-back-face';
+
+  const front = document.createElement('div');
+  const isUnknown = rank === '?';
+  front.className = 'card-face card' + (mini ? ' card-mini' : '') +
+    (isUnknown ? '' : ' ' + (RED_SUITS.has(suit) ? 'red' : 'black'));
+  if (!isUnknown) {
+    front.innerHTML = `<span class="c-rank">${rank}</span><span class="c-suit">${suit}</span>`;
+  }
+
+  inner.appendChild(back);
+  inner.appendChild(front);
+  wrap.appendChild(inner);
+  return { wrap, inner };
 }
 
-function renderCards(containerId, hand, mini = false) {
+// Render a full hand into a container. animate=true flips cards one by one.
+// startIdx is the first card index for delay calculation (used for community cards).
+function renderCards(containerId, hand, mini = false, animate = false, startIdx = 0) {
   const el = document.getElementById(containerId);
   el.innerHTML = '';
-  (hand || []).forEach(([rank, suit]) => el.appendChild(makeCard(rank, suit, mini)));
+  (hand || []).forEach(([rank, suit], i) => {
+    const { wrap, inner } = makeFlipCard(rank, suit, mini);
+    el.appendChild(wrap);
+    if (rank !== '?' && (animate ? false : true)) {
+      inner.classList.add('flipped');
+    } else if (rank !== '?') {
+      setTimeout(() => inner.classList.add('flipped'), (startIdx + i) * 300);
+    }
+    // Unknown cards ('?') stay face-down — no flip
+  });
+}
+
+// Append new cards to an existing container with animation (used for turn+river).
+function appendCards(containerId, hand, mini = false, baseDelay = 0) {
+  const el = document.getElementById(containerId);
+  (hand || []).forEach(([rank, suit], i) => {
+    const { wrap, inner } = makeFlipCard(rank, suit, mini);
+    el.appendChild(wrap);
+    setTimeout(() => inner.classList.add('flipped'), baseDelay + i * 320);
+  });
 }
 
 // ── Chip / bet ────────────────────────────────────────────────────────────────
 function setChip(amt) {
   chipAmt = amt;
   document.querySelectorAll('.chip').forEach(b => {
-    const val = parseInt(b.textContent.replace('$',''));
-    b.classList.toggle('active', val === amt);
+    b.classList.toggle('active', parseInt(b.textContent.replace('$', '')) === amt);
   });
 }
 
@@ -49,7 +85,7 @@ function clearBet() {
 }
 
 document.querySelectorAll('.chip').forEach(btn => {
-  btn.onclick = () => { setChip(parseInt(btn.textContent.replace('$',''))); addChip(); };
+  btn.onclick = () => { setChip(parseInt(btn.textContent.replace('$', ''))); addChip(); };
 });
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -59,15 +95,58 @@ async function deal() {
   if (state.error) { alert(state.error); return; }
   clearBet();
   lastRoundNets = {};
-  render(state);
+  communityCount = 0;
+
+  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  document.getElementById('result-banner').textContent = '';
+  document.getElementById('result-banner').className = 'result-banner';
+  document.getElementById('hand-name').textContent = '';
+  document.getElementById('pot-display').textContent = `Pot: $${state.pot.toLocaleString()}`;
+
+  // Player cards first (0ms, 300ms)
+  renderCards('player-cards', state.player_hole, false, true, 0);
+
+  // Community cards after player cards finish (2 × 300ms + 200ms buffer = 800ms)
+  const commDelay = 2 * 300 + 200;
+  const commEl = document.getElementById('community-cards');
+  commEl.innerHTML = '';
+  (state.community || []).forEach(([rank, suit], i) => {
+    const { wrap, inner } = makeFlipCard(rank, suit, false);
+    commEl.appendChild(wrap);
+    setTimeout(() => inner.classList.add('flipped'), commDelay + i * 300);
+  });
+  communityCount = (state.community || []).length;
+
+  setControls(state.state);
+  // AI cards face-down during play
+  updateAIPanel(state.ai_players, state.bankroll, false, false, 0);
 }
 
 async function check() {
+  const prevCount = communityCount;
   const state = await api('/api/poker/check', {});
   if (state.error) { alert(state.error); return; }
   lastRoundNets['You'] = state.net;
   (state.ai_players || []).forEach(ai => { lastRoundNets[ai.name] = ai.last_net; });
-  render(state);
+
+  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  document.getElementById('pot-display').textContent = '';
+  document.getElementById('hand-name').textContent = state.player_hand_name || '';
+
+  // Animate only the new community cards (turn + river)
+  const newCards = (state.community || []).slice(prevCount);
+  appendCards('community-cards', newCards, false, 0);
+  communityCount = (state.community || []).length;
+
+  // Show result after new cards finish flipping
+  const resultDelay = newCards.length * 320 + 150;
+  setTimeout(() => showResult(state), resultDelay);
+
+  setControls(state.state);
+
+  // Reveal AI cards after result appears
+  const aiDelay = resultDelay + 300;
+  updateAIPanel(state.ai_players, state.bankroll, !!state.reveal_ai, true, aiDelay);
 }
 
 async function fold() {
@@ -75,36 +154,20 @@ async function fold() {
   if (state.error) { alert(state.error); return; }
   lastRoundNets['You'] = state.net;
   (state.ai_players || []).forEach(ai => { lastRoundNets[ai.name] = ai.last_net; });
-  render(state);
+
+  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  document.getElementById('pot-display').textContent = '';
+  showResult(state);
+  setControls(state.state);
+  // Reveal AI cards immediately (no animation on fold)
+  updateAIPanel(state.ai_players, state.bankroll, true, false, 0);
 }
 
-// ── Render ────────────────────────────────────────────────────────────────────
-function render(state) {
-  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
-
-  // Community cards
-  renderCards('community-cards', state.community);
-
-  // Pot
-  const potEl = document.getElementById('pot-display');
-  potEl.textContent = state.pot > 0 ? `Pot: $${state.pot.toLocaleString()}` : '';
-
-  // Player cards
-  renderCards('player-cards', state.player_hole);
-
-  // Hand name
-  document.getElementById('hand-name').textContent = state.player_hand_name || '';
-
-  // Result
-  showResult(state);
-
-  // Controls visibility
-  const isBetting = state.state === 'betting';
+// ── Render helpers ────────────────────────────────────────────────────────────
+function setControls(stateStr) {
+  const isBetting = stateStr === 'betting';
   document.getElementById('bet-controls').style.display   = isBetting ? 'flex' : 'none';
   document.getElementById('round-controls').style.display = !isBetting ? 'flex' : 'none';
-
-  // AI panel — show cards after showdown/fold even though state reverted to 'betting'
-  updateAIPanel(state.ai_players, state.bankroll, state.state !== 'betting' || !!state.reveal_ai);
 }
 
 function showResult(state) {
@@ -125,14 +188,13 @@ function showResult(state) {
     msg = `YOU FOLDED  ${netStr}`;
     cls = 'loss';
   } else {
-    msg = netStr;
-    cls = 'push';
+    msg = netStr; cls = 'push';
   }
   banner.textContent = msg;
-  banner.className   = `result-banner ${cls}`;
+  banner.className = `result-banner ${cls}`;
 }
 
-function updateAIPanel(aiPlayers, bankroll, showCards) {
+function updateAIPanel(aiPlayers, bankroll, showCards, animate, baseDelay) {
   const container = document.getElementById('ai-cards-container');
   container.innerHTML = '';
 
@@ -160,18 +222,29 @@ function updateAIPanel(aiPlayers, bankroll, showCards) {
       <div class="ai-cards-row" id="ai-hand-${ai.name}"></div>`;
     container.appendChild(card);
 
-    // Show AI cards if revealed (showdown or fold)
     const handEl = document.getElementById(`ai-hand-${ai.name}`);
-    if (showCards && ai.hand && ai.hand.length) {
-      ai.hand.forEach(([r, s]) => handEl.appendChild(makeCard(r, s, true)));
+    if (ai.hand && ai.hand.length) {
+      ai.hand.forEach(([r, s], i) => {
+        const isReal = r !== '?';
+        const { wrap, inner } = makeFlipCard(r, s, true);
+        handEl.appendChild(wrap);
+        if (isReal && showCards) {
+          // Flip to reveal: animated or instant
+          if (animate) {
+            setTimeout(() => inner.classList.add('flipped'), baseDelay + i * 280);
+          } else {
+            inner.classList.add('flipped');
+          }
+        }
+        // Unknown or not revealed: stays face-down (card back visible)
+      });
     }
   });
 
   // Last round
   const lrEl = document.getElementById('last-round');
   lrEl.innerHTML = '';
-  const allNames = ['You', ...(aiPlayers||[]).map(a => a.name)];
-  allNames.forEach(name => {
+  ['You', ...(aiPlayers || []).map(a => a.name)].forEach(name => {
     const net = lastRoundNets[name];
     const row = document.createElement('div');
     row.className = 'lb-row' + (name === 'You' ? ' you' : '');
@@ -186,14 +259,30 @@ function updateAIPanel(aiPlayers, bankroll, showCards) {
   // Leaderboard
   const lbEl = document.getElementById('leaderboard');
   lbEl.innerHTML = '';
-  const players = [['You', bankroll], ...(aiPlayers||[]).map(a => [a.name, a.bankroll])];
+  const players = [['You', bankroll], ...(aiPlayers || []).map(a => [a.name, a.bankroll])];
   players.sort((a, b) => b[1] - a[1]);
   players.forEach(([name, br], i) => {
     const row = document.createElement('div');
     row.className = 'lb-row' + (name === 'You' ? ' you' : '');
-    row.innerHTML = `<span>${i+1}  ${name}</span><span>$${br.toLocaleString()}</span>`;
+    row.innerHTML = `<span>${i + 1}  ${name}</span><span>$${br.toLocaleString()}</span>`;
     lbEl.appendChild(row);
   });
+}
+
+// Full state render (used on init — no animation)
+function render(state) {
+  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  document.getElementById('pot-display').textContent = state.pot > 0 ? `Pot: $${state.pot.toLocaleString()}` : '';
+
+  renderCards('player-cards',    state.player_hole, false, false);
+  renderCards('community-cards', state.community,   false, false);
+  communityCount = (state.community || []).length;
+
+  document.getElementById('hand-name').textContent = state.player_hand_name || '';
+  showResult(state);
+  setControls(state.state);
+  updateAIPanel(state.ai_players, state.bankroll,
+    state.state !== 'betting' || !!state.reveal_ai, false, 0);
 }
 
 // ── Leave ─────────────────────────────────────────────────────────────────────

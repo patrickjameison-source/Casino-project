@@ -113,7 +113,7 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
   flex-wrap: wrap;
   gap: 8px;
   align-items: flex-start;
-  min-height: 120px;
+  min-height: 104px;
 }
 
 .card {
@@ -549,18 +549,85 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
 .res-dot.black { background: #333; color: #fff; }
 .res-dot.green { background: #1a7a40; color: #fff; }
 
-/* ── Poker ────────────────────────────────────────────────────────────────── */
-.poker-layout {
+/* ── Poker page layout ────────────────────────────────────────────────────── */
+.poker-page {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr 190px;
   gap: 16px;
+  padding: 16px;
+  height: calc(100vh - 57px);
+  overflow: hidden;
 }
 
+.poker-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.poker-controls {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* ── Card flip animation ───────────────────────────────────────────────────── */
+.card-flip {
+  perspective: 800px;
+  width: 72px;
+  height: 100px;
+  flex-shrink: 0;
+}
+.card-flip-mini {
+  width: 42px;
+  height: 58px;
+}
+.card-flip-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.42s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+.card-flip-inner.flipped {
+  transform: rotateY(180deg);
+}
+.card-face, .card-back-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 8px;
+}
+.card-back-face {
+  background: linear-gradient(135deg, #1a3a6b 0%, #0d2040 100%);
+  border: 1px solid #0d2a52;
+  box-shadow: 2px 3px 6px rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-back-face::after {
+  content: "♠";
+  font-size: 2rem;
+  color: rgba(255,255,255,0.12);
+}
+.card-face {
+  transform: rotateY(180deg);
+}
+
+/* ── Poker ────────────────────────────────────────────────────────────────── */
 .community-row {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  min-height: 120px;
+  min-height: 104px;
 }
 
 .pot-display {

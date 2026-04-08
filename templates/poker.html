@@ -2,7 +2,6 @@
 {% block title %}Poker — Casino Royale{% endblock %}
 
 {% block body %}
-<!-- Header -->
 <div class="site-header">
   <a href="/" class="back-btn" id="back-btn">← Lobby</a>
   <h1>♥ &nbsp;TEXAS HOLD'EM&nbsp; ♦</h1>
@@ -10,21 +9,21 @@
 </div>
 <div class="gold-line"></div>
 
-<div style="display:grid;grid-template-columns:1fr 200px;gap:16px;padding:16px;height:calc(100vh - 57px - 1px - 88px);overflow:hidden;">
+<div class="poker-page">
 
-  <!-- Game area -->
-  <div class="table-felt" style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;">
+  <!-- Main table -->
+  <div class="table-felt poker-table">
 
     <!-- Community cards -->
     <div>
-      <div class="flex justify-between items-center" style="margin-bottom:8px;">
+      <div class="flex justify-between items-center" style="margin-bottom:6px;">
         <div class="section-label">COMMUNITY CARDS</div>
         <div class="pot-display" id="pot-display"></div>
       </div>
       <div class="community-row" id="community-cards"></div>
     </div>
 
-    <!-- Result -->
+    <!-- Result banner -->
     <div class="result-banner" id="result-banner"></div>
 
     <!-- Player hole cards -->
@@ -36,13 +35,12 @@
       <div class="cards-row" id="player-cards"></div>
     </div>
 
-    <!-- Controls -->
-    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:auto;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">
-      <!-- Ante input (betting state) -->
-      <div id="bet-controls" style="display:flex;gap:10px;align-items:center;">
+    <!-- Controls — always visible at bottom -->
+    <div class="poker-controls">
+      <div id="bet-controls" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
         <div>
-          <div style="font-size:0.7rem;color:#777;margin-bottom:4px;">ANTE</div>
-          <div class="chip-row" id="chip-row">
+          <div style="font-size:0.7rem;color:#777;margin-bottom:4px;">SELECT CHIP</div>
+          <div class="chip-row">
             <button class="chip chip-5"   onclick="setChip(5)">$5</button>
             <button class="chip chip-10"  onclick="setChip(10)">$10</button>
             <button class="chip chip-25"  onclick="setChip(25)">$25</button>
@@ -52,23 +50,23 @@
           </div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:0.7rem;color:#777;">BET</div>
+          <div style="font-size:0.7rem;color:#777;">ANTE</div>
           <div class="bet-display" id="bet-display">$0</div>
           <button class="btn btn-dark btn-sm" onclick="clearBet()">Clear</button>
         </div>
         <button class="btn btn-gold btn-lg" id="btn-deal" onclick="deal()">DEAL</button>
       </div>
 
-      <!-- In-round controls (flop state) -->
       <div id="round-controls" style="display:none;gap:12px;">
-        <button class="btn btn-green btn-lg" id="btn-check" onclick="check()">CHECK</button>
-        <button class="btn btn-red btn-lg"   id="btn-fold"  onclick="fold()">FOLD</button>
+        <button class="btn btn-green btn-lg" onclick="check()">CHECK</button>
+        <button class="btn btn-red btn-lg"   onclick="fold()">FOLD</button>
       </div>
     </div>
+
   </div>
 
   <!-- AI Panel -->
-  <div class="ai-panel">
+  <div class="ai-panel" style="overflow-y:auto;">
     <h3>AI PLAYERS</h3>
     <div id="ai-cards-container"></div>
     <div style="border-top:1px solid var(--gold-dim);margin-top:4px;padding-top:8px;">
@@ -80,6 +78,7 @@
       <div id="leaderboard"></div>
     </div>
   </div>
+
 </div>
 {% endblock %}
 
