@@ -12,88 +12,72 @@ async function api(path, body = null) {
   return r.json();
 }
 
-// ── Card rendering ────────────────────────────────────────────────────────────
-function makeCard(rank, suit, mini = false) {
-  const div = document.createElement('div');
-  div.className = 'card' + (mini ? ' card-mini' : '');
-  if (rank === '?') {
-    div.classList.add('face-down');
-    return div;
+// ── Card flip ─────────────────────────────────────────────────────────────────
+function makeFlipCard(rank, suit, mini = false) {
+  const wrap = document.createElement('div');
+  wrap.className = 'card-flip' + (mini ? ' card-flip-mini' : '');
+
+  const inner = document.createElement('div');
+  inner.className = 'card-flip-inner';
+
+  const back = document.createElement('div');
+  back.className = 'card-back-face';
+
+  const front = document.createElement('div');
+  const isUnknown = rank === '?';
+  front.className = 'card-face card' + (mini ? ' card-mini' : '') +
+    (isUnknown ? '' : ' ' + (RED_SUITS.has(suit) ? 'red' : 'black'));
+  if (!isUnknown) {
+    front.innerHTML = `<span class="c-rank">${rank}</span><span class="c-suit">${suit}</span>`;
   }
-  const isRed = RED_SUITS.has(suit);
-  div.classList.add(isRed ? 'red' : 'black');
-  div.innerHTML = `<span class="c-rank">${rank}</span><span class="c-suit">${suit}</span>`;
-  return div;
+
+  inner.appendChild(back);
+  inner.appendChild(front);
+  wrap.appendChild(inner);
+  return { wrap, inner };
 }
 
+// Append one card to a container, flip it after `delay` ms
+function appendCard(containerId, rank, suit, mini = false, delay = 0) {
+  const el = document.getElementById(containerId);
+  const { wrap, inner } = makeFlipCard(rank, suit, mini);
+  el.appendChild(wrap);
+  if (rank !== '?') setTimeout(() => inner.classList.add('flipped'), delay);
+  // '?' cards stay face-down (card back visible, never flipped)
+}
+
+// Render all cards instantly — used for state restore on page load
 function renderCards(containerId, hand, mini = false) {
   const el = document.getElementById(containerId);
   el.innerHTML = '';
-  (hand || []).forEach(([rank, suit]) => el.appendChild(makeCard(rank, suit, mini)));
+  (hand || []).forEach(([rank, suit]) => {
+    const { wrap, inner } = makeFlipCard(rank, suit, mini);
+    el.appendChild(wrap);
+    if (rank !== '?') inner.classList.add('flipped');
+  });
 }
 
-// ── UI update ─────────────────────────────────────────────────────────────────
-function renderAICards(container, ai, mini = true) {
-  container.innerHTML = '';
-  (ai.hand || []).forEach(([rank, suit]) => container.appendChild(makeCard(rank, suit, mini)));
-}
-
-function updateAIPanel(aiPlayers, bankroll) {
-  const container = document.getElementById('ai-cards-container');
-  container.innerHTML = '';
-
-  aiPlayers.forEach(ai => {
-    const card = document.createElement('div');
-    card.className = 'ai-card';
-    card.innerHTML = `
-      <div class="ai-card-accent ${ai.personality}"></div>
-      <div class="ai-name ${ai.personality}">${ai.name.toUpperCase()}</div>
-      <div class="ai-bankroll">$${ai.bankroll.toLocaleString()}</div>
-      <div class="ai-info" id="ai-info-${ai.name}">Bet: ${ai.bet ? '$' + ai.bet.toLocaleString() : '—'}</div>
-      <div class="ai-cards-row" id="ai-hand-${ai.name}"></div>`;
-    container.appendChild(card);
-
-    if (ai.last_result !== null && ai.last_result !== undefined) {
-      const net = ai.last_net;
-      const netStr = net > 0 ? `+$${net.toLocaleString()}` : net < 0 ? `-$${Math.abs(net).toLocaleString()}` : '$0';
-      const netClass = net > 0 ? 'text-win' : net < 0 ? 'text-loss' : 'text-muted';
-      const info = document.getElementById(`ai-info-${ai.name}`);
-      info.innerHTML = `<span class="${netClass}">${ai.last_result} ${netStr}</span>`;
-      const handRow = document.getElementById(`ai-hand-${ai.name}`);
-      renderAICards(handRow, ai, true);
+// Re-render dealer hand; cards before revealFrom are instant, rest animate
+function renderDealerReveal(hand, revealFrom = 1) {
+  const el = document.getElementById('dealer-cards');
+  el.innerHTML = '';
+  hand.forEach(([rank, suit], i) => {
+    const { wrap, inner } = makeFlipCard(rank, suit, false);
+    el.appendChild(wrap);
+    if (rank === '?') {
+      // stays face-down
+    } else if (i < revealFrom) {
+      inner.classList.add('flipped'); // already visible
+    } else {
+      setTimeout(() => inner.classList.add('flipped'), (i - revealFrom) * 380);
     }
   });
+}
 
-  // Last round
-  const lastRoundEl = document.getElementById('last-round');
-  lastRoundEl.innerHTML = '';
-  // Include human
-  const humanNet = window._lastHumanNet;
-  const allNames = ['You', ...aiPlayers.map(a => a.name)];
-  const allNets  = [humanNet, ...aiPlayers.map(a => a.last_net)];
-  allNames.forEach((name, i) => {
-    const net = allNets[i];
-    const row = document.createElement('div');
-    row.className = 'lb-row' + (name === 'You' ? ' you' : '');
-    const netStr = net == null ? '—'
-      : net > 0 ? `<span class="text-win">+$${net.toLocaleString()}</span>`
-      : net < 0 ? `<span class="text-loss">-$${Math.abs(net).toLocaleString()}</span>`
-      : '$0';
-    row.innerHTML = `<span>${name}</span><span>${netStr}</span>`;
-    lastRoundEl.appendChild(row);
-  });
-
-  // Leaderboard
-  const lbEl = document.getElementById('leaderboard');
-  lbEl.innerHTML = '';
-  const players = [['You', bankroll], ...aiPlayers.map(a => [a.name, a.bankroll])];
-  players.sort((a, b) => b[1] - a[1]);
-  players.forEach(([name, br], i) => {
-    const row = document.createElement('div');
-    row.className = 'lb-row' + (name === 'You' ? ' you' : '');
-    row.innerHTML = `<span>${i+1}  ${name}</span><span>$${br.toLocaleString()}</span>`;
-    lbEl.appendChild(row);
-  });
+// ── Buttons ───────────────────────────────────────────────────────────────────
+function lockButtons() {
+  ['btn-deal','btn-hit','btn-stand','btn-double'].forEach(id =>
+    document.getElementById(id).disabled = true);
 }
 
 function setButtons(state) {
@@ -120,20 +104,6 @@ function showResult(state) {
   banner.className   = `result-banner ${cls}`;
 }
 
-function render(state) {
-  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
-  renderCards('dealer-cards', state.dealer_hand);
-  renderCards('player-cards', state.player_hand);
-
-  document.getElementById('dealer-value').textContent = state.player_hand?.length ? state.dealer_value : '';
-  document.getElementById('player-value').textContent = state.player_hand?.length ? state.player_value : '';
-
-  window._canDouble = state.can_double;
-  setButtons(state.state);
-  showResult(state);
-  if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll);
-}
-
 // ── Chip / bet ─────────────────────────────────────────────────────────────────
 function setChip(amt) {
   chipAmt = amt;
@@ -151,41 +121,198 @@ function clearBet() {
   document.getElementById('bet-display').textContent = '$0';
 }
 
-// Make clicking a chip also add it to the bet
 document.querySelectorAll('.chip').forEach(btn => {
-  const orig = btn.onclick;
-  btn.onclick = (e) => { setChip(parseInt(btn.dataset.amt)); addChip(); };
+  btn.onclick = () => { setChip(parseInt(btn.dataset.amt)); addChip(); };
 });
+
+// ── AI panel ──────────────────────────────────────────────────────────────────
+function updateAIPanel(aiPlayers, bankroll, animateCards = false, aiDelay = 0) {
+  const container = document.getElementById('ai-cards-container');
+  container.innerHTML = '';
+
+  aiPlayers.forEach(ai => {
+    const card = document.createElement('div');
+    card.className = 'ai-card';
+    card.innerHTML = `
+      <div class="ai-card-accent ${ai.personality}"></div>
+      <div class="ai-name ${ai.personality}">${ai.name.toUpperCase()}</div>
+      <div class="ai-bankroll">$${ai.bankroll.toLocaleString()}</div>
+      <div class="ai-info" id="ai-info-${ai.name}">Bet: ${ai.bet ? '$' + ai.bet.toLocaleString() : '—'}</div>
+      <div class="ai-cards-row" id="ai-hand-${ai.name}"></div>`;
+    container.appendChild(card);
+
+    if (ai.last_result !== null && ai.last_result !== undefined) {
+      const net = ai.last_net;
+      const netStr = net > 0 ? `+$${net.toLocaleString()}` : net < 0 ? `-$${Math.abs(net).toLocaleString()}` : '$0';
+      const netClass = net > 0 ? 'text-win' : net < 0 ? 'text-loss' : 'text-muted';
+      document.getElementById(`ai-info-${ai.name}`).innerHTML =
+        `<span class="${netClass}">${ai.last_result} ${netStr}</span>`;
+
+      const handEl = document.getElementById(`ai-hand-${ai.name}`);
+      (ai.hand || []).forEach(([rank, suit], i) => {
+        const { wrap, inner } = makeFlipCard(rank, suit, true);
+        handEl.appendChild(wrap);
+        if (rank !== '?') {
+          if (animateCards) {
+            setTimeout(() => inner.classList.add('flipped'), aiDelay + i * 220);
+          } else {
+            inner.classList.add('flipped');
+          }
+        }
+      });
+    }
+  });
+
+  // Last round
+  const lastRoundEl = document.getElementById('last-round');
+  lastRoundEl.innerHTML = '';
+  const allNames = ['You', ...aiPlayers.map(a => a.name)];
+  const allNets  = [window._lastHumanNet, ...aiPlayers.map(a => a.last_net)];
+  allNames.forEach((name, i) => {
+    const net = allNets[i];
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (name === 'You' ? ' you' : '');
+    const netStr = net == null ? '—'
+      : net > 0 ? `<span class="text-win">+$${net.toLocaleString()}</span>`
+      : net < 0 ? `<span class="text-loss">-$${Math.abs(net).toLocaleString()}</span>`
+      : '$0';
+    row.innerHTML = `<span>${name}</span><span>${netStr}</span>`;
+    lastRoundEl.appendChild(row);
+  });
+
+  // Leaderboard
+  const lbEl = document.getElementById('leaderboard');
+  lbEl.innerHTML = '';
+  const players = [['You', bankroll], ...aiPlayers.map(a => [a.name, a.bankroll])];
+  players.sort((a, b) => b[1] - a[1]);
+  players.forEach(([name, br], i) => {
+    const row = document.createElement('div');
+    row.className = 'lb-row' + (name === 'You' ? ' you' : '');
+    row.innerHTML = `<span>${i+1}  ${name}</span><span>$${br.toLocaleString()}</span>`;
+    lbEl.appendChild(row);
+  });
+}
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 async function deal() {
   if (currentBet === 0) return;
+  lockButtons();
   const state = await api('/api/blackjack/deal', { bet: currentBet });
-  window._lastHumanNet = state.net ?? null;
+  window._lastHumanNet = null;
   currentBet = 0;
   document.getElementById('bet-display').textContent = '$0';
   document.getElementById('result-banner').textContent = '';
   document.getElementById('result-banner').className = 'result-banner';
-  render(state);
-  if (state.outcome) window._lastHumanNet = state.net;
+  document.getElementById('player-value').textContent = '';
+  document.getElementById('dealer-value').textContent = '';
+  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+
+  // Clear hands
+  document.getElementById('player-cards').innerHTML = '';
+  document.getElementById('dealer-cards').innerHTML = '';
+
+  // Deal in traditional order: player1 → dealer1 → player2 → dealer hole (face-down)
+  const ph = state.player_hand;
+  const dh = state.dealer_hand;
+  appendCard('player-cards', ph[0][0], ph[0][1], false, 0);
+  appendCard('dealer-cards', dh[0][0], dh[0][1], false, 320);
+  if (ph[1]) appendCard('player-cards', ph[1][0], ph[1][1], false, 640);
+  if (dh[1]) {
+    // Hole card: append to DOM after delay but don't flip (stays face-down)
+    const { wrap } = makeFlipCard(dh[1][0], dh[1][1], false);
+    setTimeout(() => document.getElementById('dealer-cards').appendChild(wrap), 960);
+  }
+
+  // Show values + unlock buttons after deal animation finishes
+  setTimeout(() => {
+    document.getElementById('player-value').textContent = state.player_value;
+    document.getElementById('dealer-value').textContent = state.dealer_value;
+    window._canDouble = state.can_double;
+    setButtons(state.state);
+    if (state.outcome) {
+      showResult(state);
+      window._lastHumanNet = state.net;
+      if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 0);
+    } else {
+      if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, false, 0);
+    }
+  }, 1200);
 }
 
 async function hit() {
+  lockButtons();
   const state = await api('/api/blackjack/hit', {});
   window._lastHumanNet = state.net ?? window._lastHumanNet;
-  render(state);
+
+  // Animate only the new card
+  const ph = state.player_hand;
+  const newCard = ph[ph.length - 1];
+  appendCard('player-cards', newCard[0], newCard[1], false, 0);
+
+  setTimeout(() => {
+    document.getElementById('player-value').textContent = state.player_value;
+    document.getElementById('dealer-value').textContent = state.dealer_value;
+    window._canDouble = state.can_double;
+    setButtons(state.state);
+    showResult(state);
+    if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll,
+      !!state.outcome, 0);
+  }, 480);
 }
 
 async function stand() {
+  lockButtons();
   const state = await api('/api/blackjack/stand', {});
   window._lastHumanNet = state.net ?? window._lastHumanNet;
-  render(state);
+
+  // Flip hole card + any new dealer cards (animate from index 1)
+  renderDealerReveal(state.dealer_hand, 1);
+
+  const revealDone = (state.dealer_hand.length - 1) * 380 + 250;
+  setTimeout(() => {
+    document.getElementById('dealer-value').textContent = state.dealer_value;
+    document.getElementById('player-value').textContent = state.player_value;
+    window._canDouble = false;
+    setButtons(state.state);
+    showResult(state);
+    if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 0);
+  }, revealDone);
 }
 
 async function dbl() {
+  lockButtons();
   const state = await api('/api/blackjack/double', {});
   window._lastHumanNet = state.net ?? window._lastHumanNet;
-  render(state);
+
+  // Flip new player card first
+  const ph = state.player_hand;
+  appendCard('player-cards', ph[ph.length - 1][0], ph[ph.length - 1][1], false, 0);
+
+  // Then reveal dealer (after 500ms)
+  setTimeout(() => renderDealerReveal(state.dealer_hand, 1), 500);
+
+  const totalDone = 500 + (state.dealer_hand.length - 1) * 380 + 250;
+  setTimeout(() => {
+    document.getElementById('player-value').textContent = state.player_value;
+    document.getElementById('dealer-value').textContent = state.dealer_value;
+    window._canDouble = false;
+    setButtons(state.state);
+    showResult(state);
+    if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 0);
+  }, totalDone);
+}
+
+// Full state render — no animation (page load / state restore)
+function render(state) {
+  document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
+  renderCards('dealer-cards', state.dealer_hand);
+  renderCards('player-cards', state.player_hand);
+  document.getElementById('dealer-value').textContent = state.player_hand?.length ? state.dealer_value : '';
+  document.getElementById('player-value').textContent = state.player_hand?.length ? state.player_value : '';
+  window._canDouble = state.can_double;
+  setButtons(state.state);
+  showResult(state);
+  if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, false, 0);
 }
 
 // ── Leave ─────────────────────────────────────────────────────────────────────
@@ -199,5 +326,4 @@ document.getElementById('back-btn').addEventListener('click', async (e) => {
 window._lastHumanNet = null;
 window._canDouble    = false;
 setChip(25);
-
 api('/api/blackjack/state').then(render);
