@@ -28,7 +28,9 @@ const CX = canvas.width  / 2;
 const CY = canvas.height / 2;
 const R  = CX - 4;
 
-function drawWheel(rotation, highlightIdx = -1) {
+function drawWheel(rotation, highlightIdx = -1, bAngle = -Math.PI / 2, bRadius = null) {
+  if (bRadius === null) bRadius = R * 0.93;
+
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const seg = (2 * Math.PI) / 37;
 
@@ -83,25 +85,44 @@ function drawWheel(rotation, highlightIdx = -1) {
   ctx.fillStyle = '#c8a84b';
   ctx.fill();
 
-  // Ball marker (fixed triangle at top)
+  // White ball
+  const bx = CX + bRadius * Math.cos(bAngle);
+  const by = CY + bRadius * Math.sin(bAngle);
+
+  // Shadow
   ctx.beginPath();
-  ctx.moveTo(CX, CY - R - 2);
-  ctx.lineTo(CX - 6, CY - R + 10);
-  ctx.lineTo(CX + 6, CY - R + 10);
-  ctx.closePath();
-  ctx.fillStyle = '#f5f0e8';
+  ctx.arc(bx + 1.5, by + 1.5, 5, 0, 2 * Math.PI);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
   ctx.fill();
+
+  // Ball with radial gradient for 3-D look
+  const grad = ctx.createRadialGradient(bx - 1.5, by - 1.5, 0.5, bx, by, 5);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(1, '#bbbbbb');
+  ctx.beginPath();
+  ctx.arc(bx, by, 5, 0, 2 * Math.PI);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = '#999';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
 }
 
 function spinTo(resultNum, callback) {
-  const idx      = WHEEL_ORDER.indexOf(resultNum);
-  const seg      = (2 * Math.PI) / 37;
-  // Angle where idx lands at the top (12 o'clock = -π/2)
+  const idx       = WHEEL_ORDER.indexOf(resultNum);
+  const seg       = (2 * Math.PI) / 37;
   const targetRot = -idx * seg;
-  // Add enough full rotations so we always spin forward
-  const spins    = 6 + Math.random() * 3;
-  const endRot   = wheelRotation - (wheelRotation % (2 * Math.PI)) - (2 * Math.PI * spins) + targetRot;
-  const startRot = wheelRotation;
+  const spins     = 6 + Math.random() * 3;
+  const endRot    = wheelRotation - (wheelRotation % (2 * Math.PI)) - (2 * Math.PI * spins) + targetRot;
+  const startRot  = wheelRotation;
+
+  // Ball spins clockwise (opposite to wheel) — more rotations, ends back at top
+  const ballSpins      = 10 + Math.random() * 4;
+  const ballStartAngle = -Math.PI / 2;                           // 12 o'clock
+  const ballEndAngle   = ballStartAngle + 2 * Math.PI * ballSpins; // clockwise
+  const ballOuterR     = R * 0.93;   // outer track
+  const ballPocketR    = R * 0.81;   // pocket (inside coloured segments)
+
   const duration = 4200;
   const startTs  = performance.now();
 
@@ -109,13 +130,22 @@ function spinTo(resultNum, callback) {
 
   function frame(now) {
     const t   = Math.min((now - startTs) / duration, 1);
-    const rot = startRot + (endRot - startRot) * easeOut(t);
-    drawWheel(rot, t > 0.97 ? idx : -1);
+    const et  = easeOut(t);
+
+    const rot    = startRot + (endRot - startRot) * et;
+    const bAngle = ballStartAngle + (ballEndAngle - ballStartAngle) * et;
+
+    // Ball falls into pocket during the last 30 % of the animation
+    const fallT   = Math.max(0, (t - 0.70) / 0.30);
+    const bRadius = ballOuterR + (ballPocketR - ballOuterR) * fallT;
+
+    drawWheel(rot, t > 0.97 ? idx : -1, bAngle, bRadius);
+
     if (t < 1) {
       requestAnimationFrame(frame);
     } else {
       wheelRotation = endRot;
-      drawWheel(endRot, idx);
+      drawWheel(endRot, idx, ballStartAngle, ballPocketR);
       callback();
     }
   }
