@@ -71,6 +71,17 @@ class RouletteGame:
         for ai in self.ai_players:
             ai.choose_bet()
 
+        # Capture AI bets BEFORE resolve() clears them
+        ai_bets = {
+            ai.name: {
+                'bet_key':     ai.current_bet_key,
+                'amount':      ai.current_bet,
+                'personality': ai.personality,
+            }
+            for ai in self.ai_players
+            if ai.current_bet_key
+        }
+
         # Calculate human net
         net = sum(
             amount * get_payout(k) if check_win(k, result) else -amount
@@ -98,10 +109,11 @@ class RouletteGame:
         self.active_bets = {}
         state = self.get_state()
         state.update({
-            'spin_result': result,
+            'spin_result':  result,
             'result_color': color,
-            'net': net,
-            'won_bets': won_bets,
+            'net':          net,
+            'won_bets':     won_bets,
+            'ai_bets':      ai_bets,
         })
         return state
 

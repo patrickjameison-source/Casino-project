@@ -3,9 +3,60 @@ const WHEEL_ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16
 const RED_NUMS    = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
 
 let chipAmt = 25;
-let wheelRotation = 0;   // current resting rotation of the wheel
+let wheelRotation = 0;
 let spinning = false;
+let currentActiveBets = {};   // player's current bets — tracked for chip display
 const recentResults = [];
+
+// ── Chip colour helpers ───────────────────────────────────────────────────────
+function chipColor(amount) {
+  if (amount >= 500) return '#c8a84b';
+  if (amount >= 100) return '#5b2c6f';
+  if (amount >= 50)  return '#b9770e';
+  if (amount >= 25)  return '#1a7a40';
+  if (amount >= 10)  return '#1f618d';
+  return '#a93226';
+}
+function chipLabel(amount) {
+  return amount >= 1000 ? Math.round(amount / 1000) + 'k' : amount;
+}
+
+const AI_CHIP_COLOR = { aggressive: '#c0392b', moderate: '#2471a3', conservative: '#1a7a40' };
+const AI_PERSONALITY_ORDER = ['aggressive', 'moderate', 'conservative'];
+
+// ── Table chip rendering ──────────────────────────────────────────────────────
+function clearTableChips() {
+  document.querySelectorAll('.table-chip').forEach(el => el.remove());
+}
+
+function showTableChips(activeBets, aiBets) {
+  clearTableChips();
+
+  // Player chips — centred on each bet cell
+  Object.entries(activeBets || {}).forEach(([key, amount]) => {
+    document.querySelectorAll(`[data-key="${key}"]`).forEach(cell => {
+      const chip = document.createElement('div');
+      chip.className = 'table-chip table-chip-player';
+      chip.style.background = chipColor(amount);
+      chip.textContent = chipLabel(amount);
+      cell.appendChild(chip);
+    });
+  });
+
+  // AI chips — small, in fixed corners based on personality order
+  Object.entries(aiBets || {}).forEach(([name, bet]) => {
+    const posIdx = AI_PERSONALITY_ORDER.indexOf(bet.personality);
+    const pos    = posIdx >= 0 ? posIdx : 0;
+    document.querySelectorAll(`[data-key="${bet.bet_key}"]`).forEach(cell => {
+      const chip = document.createElement('div');
+      chip.className = `table-chip table-chip-ai ai-pos-${pos}`;
+      chip.style.background = AI_CHIP_COLOR[bet.personality] || '#555';
+      chip.title = `${name}: $${bet.amount}`;
+      chip.textContent = name.charAt(0);
+      cell.appendChild(chip);
+    });
+  });
+}
 
 function numColor(n) {
   if (n === 0) return 'green';
@@ -215,6 +266,9 @@ async function spin() {
   spinning = true;
   document.getElementById('btn-spin').disabled = true;
 
+  // Save player bets before the API call clears them server-side
+  const betsAtSpin = { ...currentActiveBets };
+
   const state = await api('/api/roulette/spin', {});
   if (state.error) {
     alert(state.error);
@@ -223,7 +277,11 @@ async function spin() {
     return;
   }
 
+  // Show player chips + AI chips on the table while the wheel spins
+  showTableChips(betsAtSpin, state.ai_bets);
+
   spinTo(state.spin_result, () => {
+    clearTableChips();
     spinning = false;
     document.getElementById('btn-spin').disabled = false;
     renderSpin(state);
@@ -232,15 +290,20 @@ async function spin() {
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function renderBets(state) {
+  currentActiveBets = state.active_bets || {};
+
   document.getElementById('bankroll').textContent  = '$' + state.bankroll.toLocaleString();
   document.getElementById('total-bet').textContent = '$' + state.total_bet.toLocaleString();
 
   document.querySelectorAll('.num-cell, .outside-cell').forEach(el => el.classList.remove('active'));
-  Object.keys(state.active_bets || {}).forEach(key => {
+  Object.keys(currentActiveBets).forEach(key => {
     document.querySelectorAll(`[data-key="${key}"]`).forEach(el => el.classList.add('active'));
   });
 
-  const bets = state.active_bets || {};
+  // Show player chips on table
+  showTableChips(currentActiveBets, {});
+
+  const bets   = currentActiveBets;
   const betsEl = document.getElementById('active-bets');
   if (Object.keys(bets).length === 0) {
     betsEl.textContent = 'None';

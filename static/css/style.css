@@ -476,6 +476,8 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
   min-width: 32px;
   min-height: 32px;
   color: #fff;
+  position: relative;
+  overflow: visible;
 }
 .num-cell:hover { transform: scale(1.05); filter: brightness(1.2); }
 .num-cell.active { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-dim); }
@@ -496,6 +498,8 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
   cursor: pointer;
   border: 2px solid transparent;
   transition: border-color 0.1s, filter 0.1s;
+  position: relative;
+  overflow: visible;
 }
 .outside-cell:hover { filter: brightness(1.2); }
 .outside-cell.active { border-color: var(--gold); }
@@ -505,6 +509,53 @@ button { cursor: pointer; border: none; outline: none; font-family: inherit; }
 .outside-cell.even-cell, .outside-cell.odd-cell,
 .outside-cell.low-cell, .outside-cell.high-cell { background: var(--table-lt); color: #fff; }
 .outside-cell.dozen-cell, .outside-cell.col-cell { background: #0d4a36; color: #fff; }
+
+/* ── Table chip overlays ──────────────────────────────────────────────────── */
+.table-chip {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #fff;
+  pointer-events: none;
+  z-index: 20;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.25);
+  border: 2px solid rgba(255,255,255,0.3);
+}
+
+/* Player's own chip — centred on the cell */
+.table-chip-player {
+  width: 26px;
+  height: 26px;
+  font-size: 0.5rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: chipDrop 0.18s ease-out;
+}
+
+/* AI chips — small, tucked in corners */
+.table-chip-ai {
+  width: 13px;
+  height: 13px;
+  font-size: 0.45rem;
+  border-width: 1.5px;
+  animation: chipPop 0.15s ease-out;
+}
+.table-chip-ai.ai-pos-0 { top:  3px; right: 3px; }
+.table-chip-ai.ai-pos-1 { top:  3px; left:  3px; }
+.table-chip-ai.ai-pos-2 { bottom: 3px; right: 3px; }
+
+@keyframes chipDrop {
+  from { transform: translate(-50%, calc(-50% - 14px)) scale(0.6); opacity: 0; }
+  to   { transform: translate(-50%, -50%)               scale(1);   opacity: 1; }
+}
+@keyframes chipPop {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
 
 .spin-result-circle {
   width: 100px;
