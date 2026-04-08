@@ -33,7 +33,7 @@ def _get_sess():
 
 
 def _flush(sess, game_key):
-    """Copy new session_log entries from a game into session history."""
+    """Copy new session_log entries from a game into session history, then discard the engine."""
     game = sess[game_key]
     if not game:
         return
@@ -42,7 +42,8 @@ def _flush(sess, game_key):
     new        = game.session_log[offset:]
     sess['history'].extend(new)
     sess[offset_key] = len(game.session_log)
-    sess['bankroll'] = game.bankroll
+    sess['bankroll']  = game.bankroll
+    sess[game_key]    = None   # force fresh engine with correct bankroll on next entry
 
 
 def _sync_bankroll(sess, game):
@@ -113,6 +114,8 @@ def api_lobby():
 def _bj(sess):
     if sess['bj'] is None:
         sess['bj'] = BlackjackGame(sess['bankroll'], sess['ai_players'])
+    else:
+        sess['bj'].bankroll = sess['bankroll']
     return sess['bj']
 
 
@@ -167,6 +170,8 @@ def bj_leave():
 def _roulette(sess):
     if sess['roulette'] is None:
         sess['roulette'] = RouletteGame(sess['bankroll'], sess['ai_players'])
+    else:
+        sess['roulette'].bankroll = sess['bankroll']
     return sess['roulette']
 
 
@@ -210,6 +215,8 @@ def roulette_leave():
 def _poker(sess):
     if sess['poker'] is None:
         sess['poker'] = PokerGame(sess['bankroll'], sess['ai_players'])
+    else:
+        sess['poker'].bankroll = sess['bankroll']
     return sess['poker']
 
 
