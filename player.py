@@ -30,6 +30,9 @@ class Player:
         self.bankroll          = starting_bankroll
         self.active            = True
 
+        # Balance history — one entry per round, starting with initial bankroll
+        self.bankroll_history  = [starting_bankroll]
+
         # Last-round data (reset each time apply_result is called)
         self.last_net          = None
         self.last_bet          = 0
@@ -57,6 +60,7 @@ class Player:
         self.last_bet_key = bet_key
 
         self.bankroll += net
+        self.bankroll_history.append(self.bankroll)
         if self.bankroll <= 0:
             self.bankroll = 0
             self.active   = False

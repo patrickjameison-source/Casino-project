@@ -28,6 +28,18 @@
 
   <div class="gold-line" style="margin: 0 0 20px;"></div>
 
+  <!-- Balance Chart -->
+  <div style="margin-bottom: 24px;">
+    <div style="font-size:0.8rem;font-weight:bold;color:var(--gold);letter-spacing:.08em;margin-bottom:10px;">
+      BALANCE OVER TIME
+    </div>
+    <div id="no-chart" style="color:#666;font-size:0.9rem;padding:16px 0;">
+      Play some rounds to see your chart.
+    </div>
+    <canvas id="balance-chart" style="display:none;width:100%;height:220px;border-radius:6px;"></canvas>
+    <div id="chart-legend" style="display:none;flex-wrap:wrap;gap:4px;margin-top:8px;"></div>
+  </div>
+
   <!-- Player Standings -->
   <div style="margin-bottom: 24px;">
     <div style="font-size:0.8rem;font-weight:bold;color:var(--gold);letter-spacing:.08em;margin-bottom:10px;">
@@ -63,11 +75,124 @@
 
 {% block scripts %}
 <script>
+function drawBalanceChart(humanHistory, aiPlayers) {
+  const canvas  = document.getElementById('balance-chart');
+  const noChart = document.getElementById('no-chart');
+  const legend  = document.getElementById('chart-legend');
+
+  const series = [
+    { label: 'You', color: '#c8a84b', points: humanHistory },
+    ...aiPlayers.map(p => ({
+      label:  p.name,
+      color:  p.personality === 'aggressive' ? '#e53935'
+            : p.personality === 'moderate'   ? '#1e88e5'
+            :                                  '#43a047',
+      points: p.bankroll_history,
+    }))
+  ];
+
+  const maxLen = Math.max(...series.map(s => s.points.length));
+  if (maxLen < 2) {
+    noChart.style.display = '';
+    canvas.style.display = 'none';
+    legend.style.display = 'none';
+    return;
+  }
+
+  noChart.style.display = 'none';
+  canvas.style.display  = 'block';
+  legend.style.display  = 'flex';
+
+  legend.innerHTML = series.map(s =>
+    `<span style="display:flex;align-items:center;gap:5px;margin-right:14px;">
+      <span style="display:inline-block;width:22px;height:3px;background:${s.color};border-radius:2px;"></span>
+      <span style="font-size:0.72rem;color:#aaa;">${s.label}</span>
+    </span>`
+  ).join('');
+
+  const dpr = window.devicePixelRatio || 1;
+  const W   = canvas.offsetWidth;
+  const H   = 220;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const pad = { top: 14, right: 20, bottom: 28, left: 62 };
+  const cW  = W - pad.left - pad.right;
+  const cH  = H - pad.top  - pad.bottom;
+
+  const allVals = series.flatMap(s => s.points);
+  const rawMin  = Math.min(...allVals);
+  const rawMax  = Math.max(...allVals);
+  const spread  = rawMax - rawMin || 200;
+  const yMin    = Math.floor((rawMin - spread * 0.08) / 100) * 100;
+  const yMax    = Math.ceil( (rawMax + spread * 0.08) / 100) * 100;
+  const yRange  = yMax - yMin || 1;
+
+  const toX = (i, len) => pad.left + (len < 2 ? 0 : i / (len - 1)) * cW;
+  const toY = v => pad.top + cH - ((v - yMin) / yRange) * cH;
+
+  // Background
+  ctx.fillStyle = '#0a0e14';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines + Y labels
+  const gridStep = yRange <= 400 ? 100 : yRange <= 1000 ? 200 : 500;
+  const firstGrid = Math.ceil(yMin / gridStep) * gridStep;
+  ctx.font      = '10px monospace';
+  ctx.textAlign = 'right';
+  for (let v = firstGrid; v <= yMax; v += gridStep) {
+    const y       = toY(v);
+    const isStart = v === 1000;
+    ctx.strokeStyle = isStart ? 'rgba(200,168,75,0.4)' : 'rgba(255,255,255,0.07)';
+    ctx.lineWidth   = isStart ? 1.5 : 1;
+    ctx.setLineDash(isStart ? [4, 4] : []);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(W - pad.right, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = isStart ? 'rgba(200,168,75,0.65)' : 'rgba(255,255,255,0.3)';
+    ctx.fillText('$' + v.toLocaleString(), pad.left - 6, y + 3.5);
+  }
+
+  // Plot each series
+  series.forEach(s => {
+    if (s.points.length < 2) return;
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth   = 2;
+    ctx.lineJoin    = 'round';
+    ctx.beginPath();
+    s.points.forEach((val, i) => {
+      const x = toX(i, s.points.length);
+      const y = toY(val);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Dot at current position
+    const lx = toX(s.points.length - 1, s.points.length);
+    const ly = toY(s.points[s.points.length - 1]);
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // X axis label
+  ctx.fillStyle  = 'rgba(255,255,255,0.18)';
+  ctx.textAlign  = 'center';
+  ctx.fillText('rounds →', W / 2, H - 6);
+}
+
 async function loadLobby() {
   const r = await fetch('/api/lobby');
   const d = await r.json();
 
   document.getElementById('bankroll').textContent = '$' + d.bankroll.toLocaleString();
+
+  // Chart
+  drawBalanceChart(d.human_history, d.ai_players);
 
   // Standings
   const rows = [['You', d.bankroll, d.human_pl], ...d.ai_players.map(p => [p.name, p.bankroll, p.profit_loss])];

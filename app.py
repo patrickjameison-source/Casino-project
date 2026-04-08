@@ -84,17 +84,23 @@ def api_lobby():
     for key in ('bj', 'roulette', 'poker'):
         _flush(sess, key)
     human_pl = sess['bankroll'] - sess['starting_bankroll']
+    # Reconstruct human balance history from full session history
+    h_hist = [sess['starting_bankroll']]
+    for e in sess['history']:
+        h_hist.append(h_hist[-1] + e['net'])
     return jsonify({
         'bankroll':          sess['bankroll'],
         'starting_bankroll': sess['starting_bankroll'],
         'human_pl':          human_pl,
-        'history':           sess['history'][-50:],   # last 50
+        'history':           sess['history'][-50:],
+        'human_history':     h_hist,
         'ai_players': [
             {
-                'name':        p.name,
-                'bankroll':    p.bankroll,
-                'profit_loss': p.profit_loss,
-                'personality': p.personality,
+                'name':             p.name,
+                'bankroll':         p.bankroll,
+                'profit_loss':      p.profit_loss,
+                'personality':      p.personality,
+                'bankroll_history': p.bankroll_history,
             }
             for p in sess['ai_players']
         ],
