@@ -12,6 +12,23 @@ async function api(path, body = null) {
   return r.json();
 }
 
+// ── Dealer value display ──────────────────────────────────────────────────────
+// When the hole card is hidden, show only the visible card(s) total + " + ?"
+function dealerDisplay(dealerHand, fullValue) {
+  const hasHidden = (dealerHand || []).some(([r]) => r === '?');
+  if (!hasHidden) return fullValue;
+  const visible = (dealerHand || []).filter(([r]) => r !== '?');
+  if (!visible.length) return '?';
+  let total = 0, aces = 0;
+  for (const [rank] of visible) {
+    if (rank === 'A')                       { aces++; total += 11; }
+    else if (['J','Q','K'].includes(rank))  { total += 10; }
+    else                                    { total += parseInt(rank); }
+  }
+  while (total > 21 && aces) { total -= 10; aces--; }
+  return total + ' + ?';
+}
+
 // ── Card flip ─────────────────────────────────────────────────────────────────
 function makeFlipCard(rank, suit, mini = false) {
   const wrap = document.createElement('div');
@@ -226,7 +243,7 @@ async function deal() {
   // Show values + unlock buttons after deal animation finishes
   setTimeout(() => {
     document.getElementById('player-value').textContent = state.player_value;
-    document.getElementById('dealer-value').textContent = state.dealer_value;
+    document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     window._canDouble = state.can_double;
     setButtons(state.state);
     if (state.outcome) {
@@ -253,7 +270,7 @@ async function hit() {
 
   setTimeout(() => {
     document.getElementById('player-value').textContent = state.player_value;
-    document.getElementById('dealer-value').textContent = state.dealer_value;
+    document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     window._canDouble = state.can_double;
     setButtons(state.state);
     showResult(state);
@@ -274,7 +291,7 @@ async function stand() {
 
   const revealDone = (state.dealer_hand.length - 1) * 380 + 250;
   setTimeout(() => {
-    document.getElementById('dealer-value').textContent = state.dealer_value;
+    document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     document.getElementById('player-value').textContent = state.player_value;
     window._canDouble = false;
     setButtons(state.state);
@@ -298,7 +315,7 @@ async function dbl() {
   const totalDone = 500 + (state.dealer_hand.length - 1) * 380 + 250;
   setTimeout(() => {
     document.getElementById('player-value').textContent = state.player_value;
-    document.getElementById('dealer-value').textContent = state.dealer_value;
+    document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     window._canDouble = false;
     setButtons(state.state);
     showResult(state);
@@ -311,7 +328,7 @@ function render(state) {
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   renderCards('dealer-cards', state.dealer_hand);
   renderCards('player-cards', state.player_hand);
-  document.getElementById('dealer-value').textContent = state.player_hand?.length ? state.dealer_value : '';
+  document.getElementById('dealer-value').textContent = state.player_hand?.length ? dealerDisplay(state.dealer_hand, state.dealer_value) : '';
   document.getElementById('player-value').textContent = state.player_hand?.length ? state.player_value : '';
   window._canDouble = state.can_double;
   setButtons(state.state);
