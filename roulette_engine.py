@@ -103,9 +103,6 @@ class RouletteGame:
         for ai in self.ai_players:
             ai.resolve(result, check_win, get_payout)
 
-        if self.bankroll <= 0:
-            self.bankroll = 1000
-
         self.active_bets = {}
         state = self.get_state()
         state.update({
@@ -120,6 +117,7 @@ class RouletteGame:
     def get_state(self):
         return {
             'bankroll':    self.bankroll,
+            'busted':      self.bankroll <= 0,
             'active_bets': self.active_bets,
             'total_bet':   sum(self.active_bets.values()),
             'last_result': self.last_result,

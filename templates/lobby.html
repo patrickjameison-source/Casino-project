@@ -11,7 +11,12 @@
   <div class="lobby-bankroll-label">YOUR BANKROLL</div>
   <div class="lobby-bankroll" id="bankroll">$1,000</div>
 
-  <div class="game-buttons">
+  <div id="busted-banner" style="display:none;margin:12px 0 8px;padding:14px 20px;background:rgba(183,28,28,0.18);border:1px solid var(--loss);border-radius:6px;text-align:center;">
+    <div style="font-size:1.1rem;font-weight:bold;color:var(--loss);letter-spacing:.1em;">YOU'RE BROKE</div>
+    <div style="font-size:0.82rem;color:#aaa;margin-top:4px;">You've lost everything. Better luck next time.</div>
+  </div>
+
+  <div class="game-buttons" id="game-buttons">
     <a href="/roulette" class="game-btn roulette">
       <span class="game-btn-icon">♦ ♣</span>
       <span>ROULETTE</span>
@@ -25,6 +30,7 @@
       <span>POKER</span>
     </a>
   </div>
+
 
   <div class="gold-line" style="margin: 0 0 20px;"></div>
 
@@ -190,6 +196,10 @@ async function loadLobby() {
   const d = await r.json();
 
   document.getElementById('bankroll').textContent = '$' + d.bankroll.toLocaleString();
+
+  // Busted state
+  document.getElementById('busted-banner').style.display = d.busted ? '' : 'none';
+  document.getElementById('game-buttons').style.display  = d.busted ? 'none' : '';
 
   // Chart
   drawBalanceChart(d.human_history, d.ai_players);

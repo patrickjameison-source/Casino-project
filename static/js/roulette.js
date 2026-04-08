@@ -289,6 +289,18 @@ async function spin() {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
+function applyBusted(busted) {
+  if (!busted) return;
+  document.getElementById('btn-spin').disabled = true;
+  document.querySelectorAll('.chip').forEach(b => b.disabled = true);
+  document.querySelectorAll('.num-cell, .outside-cell').forEach(el => {
+    el.style.pointerEvents = 'none';
+    el.style.opacity = '0.4';
+  });
+  const netEl = document.getElementById('net-display');
+  if (netEl) { netEl.textContent = 'BUST — GAME OVER'; netEl.style.color = 'var(--loss)'; }
+}
+
 function renderBets(state) {
   currentActiveBets = state.active_bets || {};
 
@@ -313,6 +325,7 @@ function renderBets(state) {
       .join('');
   }
   renderAI(state.ai_players, state.bankroll);
+  applyBusted(state.busted);
 }
 
 function renderSpin(state) {
@@ -349,6 +362,7 @@ function renderSpin(state) {
   document.getElementById('active-bets').textContent = 'None';
 
   renderAI(state.ai_players, state.bankroll);
+  applyBusted(state.busted);
 }
 
 function renderAI(aiPlayers, bankroll) {

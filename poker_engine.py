@@ -92,9 +92,6 @@ class PokerGame:
 
         self._resolve_ai_after_fold()
 
-        if self.bankroll <= 0:
-            self.bankroll = 1000
-
         self.bet   = 0
         self.pot   = 0
         self.state = 'betting'
@@ -138,9 +135,6 @@ class PokerGame:
                 ai.last_result = f"Win ({hand_name})" if ai_wins else f"Loss ({hand_name})"
                 ai.last_net    = ai_net
 
-        if self.bankroll <= 0:
-            self.bankroll = 1000
-
         self.bet   = 0
         self.pot   = 0
         self.state = 'betting'
@@ -182,6 +176,7 @@ class PokerGame:
         cards = self.player_hole + self.community
         return {
             'state':            self.state,
+            'busted':           self.bankroll <= 0,
             'bankroll':         self.bankroll,
             'bet':              self.bet,
             'pot':              self.pot,

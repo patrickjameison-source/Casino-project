@@ -90,6 +90,7 @@ def api_lobby():
         h_hist.append(h_hist[-1] + e['net'])
     return jsonify({
         'bankroll':          sess['bankroll'],
+        'busted':            sess['bankroll'] <= 0,
         'starting_bankroll': sess['starting_bankroll'],
         'human_pl':          human_pl,
         'history':           sess['history'][-50:],

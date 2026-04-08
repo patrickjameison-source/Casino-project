@@ -130,7 +130,8 @@ function lockButtons() {
     document.getElementById(id).disabled = true);
 }
 
-function setButtons(state) {
+function setButtons(state, busted = false) {
+  if (busted) { lockButtons(); return; }
   document.getElementById('btn-deal').disabled   = state !== 'betting';
   document.getElementById('btn-hit').disabled    = state !== 'playing';
   document.getElementById('btn-stand').disabled  = state !== 'playing';
@@ -284,7 +285,7 @@ async function deal() {
     document.getElementById('player-value').textContent = state.player_value;
     document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     window._canDouble = state.can_double;
-    setButtons(state.state);
+    setButtons(state.state, state.busted);
     if (state.outcome) {
       // Blackjack / immediate result — flip dealer hole card
       renderDealerReveal(state.dealer_hand, 1);
@@ -311,7 +312,7 @@ async function hit() {
     document.getElementById('player-value').textContent = state.player_value;
     document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     window._canDouble = state.can_double;
-    setButtons(state.state);
+    setButtons(state.state, state.busted);
     showResult(state);
     // Round ended (bust or hit to 21) — reveal dealer hole card + any drawn cards
     if (state.outcome) renderDealerReveal(state.dealer_hand, 1);
@@ -333,7 +334,7 @@ async function stand() {
     document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     document.getElementById('player-value').textContent = state.player_value;
     window._canDouble = false;
-    setButtons(state.state);
+    setButtons(state.state, state.busted);
     showResult(state);
     if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 0);
   }, revealDone);
@@ -356,7 +357,7 @@ async function dbl() {
     document.getElementById('player-value').textContent = state.player_value;
     document.getElementById('dealer-value').textContent = dealerDisplay(state.dealer_hand, state.dealer_value);
     window._canDouble = false;
-    setButtons(state.state);
+    setButtons(state.state, state.busted);
     showResult(state);
     if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 0);
   }, totalDone);

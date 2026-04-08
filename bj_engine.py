@@ -140,9 +140,6 @@ class BlackjackGame:
         for ai in self._bj_ais:
             ai.resolve(self.dealer_hand)
 
-        if self.bankroll <= 0:
-            self.bankroll = 1000
-
         self.bet = 0
         self.state = 'betting'   # must be set BEFORE get_state so DEAL re-enables
         state = self.get_state(hide_hole=False)
@@ -155,6 +152,7 @@ class BlackjackGame:
             dealer = [dealer[0], ('?', '?')]
         return {
             'state': self.state,
+            'busted': self.bankroll <= 0,
             'bankroll': self.bankroll,
             'bet': self.bet,
             'player_hand': self.player_hand,

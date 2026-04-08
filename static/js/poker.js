@@ -155,7 +155,7 @@ async function deal() {
   });
   communityCount = (state.community || []).length;
 
-  setControls(state.state);
+  setControls(state.state, state.busted);
   // AI cards face-down during play
   updateAIPanel(state.ai_players, state.bankroll, false, false, 0);
 }
@@ -181,7 +181,7 @@ async function check() {
   setTimeout(() => showResult(state), resultDelay);
   clearChipStack();
 
-  setControls(state.state);
+  setControls(state.state, state.busted);
 
   // Reveal AI cards after result appears
   const aiDelay = resultDelay + 300;
@@ -198,13 +198,18 @@ async function fold() {
   document.getElementById('pot-display').textContent = '';
   showResult(state);
   clearChipStack();
-  setControls(state.state);
+  setControls(state.state, state.busted);
   // Reveal AI cards immediately (no animation on fold)
   updateAIPanel(state.ai_players, state.bankroll, true, false, 0);
 }
 
 // ── Render helpers ────────────────────────────────────────────────────────────
-function setControls(stateStr) {
+function setControls(stateStr, busted = false) {
+  if (busted) {
+    document.getElementById('bet-controls').style.display   = 'none';
+    document.getElementById('round-controls').style.display = 'none';
+    return;
+  }
   const isBetting = stateStr === 'betting';
   document.getElementById('bet-controls').style.display   = isBetting ? 'flex' : 'none';
   document.getElementById('round-controls').style.display = !isBetting ? 'flex' : 'none';
@@ -323,7 +328,7 @@ function render(state) {
 
   document.getElementById('hand-name').textContent = state.player_hand_name || '';
   showResult(state);
-  setControls(state.state);
+  setControls(state.state, state.busted);
   updateAIPanel(state.ai_players, state.bankroll,
     state.state !== 'betting' || !!state.reveal_ai, false, 0);
 }
