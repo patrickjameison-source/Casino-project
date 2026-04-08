@@ -179,6 +179,7 @@ async function check() {
   // Show result after new cards finish flipping
   const resultDelay = newCards.length * 320 + 150;
   setTimeout(() => showResult(state), resultDelay);
+  clearChipStack();
 
   setControls(state.state);
 
@@ -196,6 +197,7 @@ async function fold() {
   document.getElementById('bankroll').textContent = '$' + state.bankroll.toLocaleString();
   document.getElementById('pot-display').textContent = '';
   showResult(state);
+  clearChipStack();
   setControls(state.state);
   // Reveal AI cards immediately (no animation on fold)
   updateAIPanel(state.ai_players, state.bankroll, true, false, 0);
