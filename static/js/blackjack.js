@@ -230,9 +230,11 @@ async function deal() {
     window._canDouble = state.can_double;
     setButtons(state.state);
     if (state.outcome) {
+      // Blackjack / immediate result — flip dealer hole card
+      renderDealerReveal(state.dealer_hand, 1);
       showResult(state);
       window._lastHumanNet = state.net;
-      if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 0);
+      if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, true, 500);
     } else {
       if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll, false, 0);
     }
@@ -255,6 +257,8 @@ async function hit() {
     window._canDouble = state.can_double;
     setButtons(state.state);
     showResult(state);
+    // Round ended (bust or hit to 21) — reveal dealer hole card + any drawn cards
+    if (state.outcome) renderDealerReveal(state.dealer_hand, 1);
     if (state.ai_players) updateAIPanel(state.ai_players, state.bankroll,
       !!state.outcome, 0);
   }, 480);
